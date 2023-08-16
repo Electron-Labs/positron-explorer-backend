@@ -4,6 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "start": "node src/app.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -12,10 +13,13 @@
   "dependencies": {
     "@koa/router": "^9.4.0",
     "bn.js": "^5.2.1",
+    "encoding-down": "^7.1.0",
     "ethers": "^6.7.1",
     "koa": "^2.13.0",
     "koa-bodyparser": "^4.3.0",
     "koa-router": "^9.4.0",
+    "leveldown": "^6.1.1",
+    "levelup": "^5.1.1",
     "near-api-js": "^2.1.4",
     "number-to-bn": "^1.7.0",
     "reconnecting-websocket": "^4.4.0",

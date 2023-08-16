@@ -105,12 +105,7 @@ async function getTxData(near, nearArchival, txHash, accountId) {
   return txData;
 }
 
-const watchNearLogs = async () => {
-  network = "testnet"
-  let nearConnection = await createNearConnection(network, `https://rpc.${network}.near.org`, currentCredentialsPath);
-  let nearArchival = await createNearConnection(network, `https://archival-rpc.testnet.near.org`, currentCredentialsPath);
-
-  const contractAccountId = "switchboard-v2.testnet"
+const watchNearLogs = async (nearConnection, nearArchival, contractAccountId) => {
   const transactions = await extractTransactions("5r7rweskNxYuG23cFqBeuFjcaSKX3M4RZ9vnsqcPdpW5", "6f7rcnoFUc1J93DpbdP4XwDzCwqnVuV1dS4CNLQXJMkA", contractAccountId, nearConnection, nearArchival)
   console.log("transactions", transactions)
 
@@ -121,4 +116,14 @@ const watchNearLogs = async () => {
   transactions[0]
 }
 
-module.exports = { watchNearLogs }
+const watchNear = async () => {
+  network = "testnet"
+  let nearConnection = await createNearConnection(network, `https://rpc.${network}.near.org`, currentCredentialsPath);
+  let nearArchival = await createNearConnection(network, `https://archival-rpc.testnet.near.org`, currentCredentialsPath);
+
+  const contractAccountId = "switchboard-v2.testnet"
+
+  await watchNearLogs(nearConnection, nearArchival, contractAccountId)
+}
+
+module.exports = { watchNear }
