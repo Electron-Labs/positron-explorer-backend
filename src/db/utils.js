@@ -16,6 +16,7 @@ const persistKeyValue = async (key, value) => {
 }
 
 const getKeyValue = async (key) => {
+  console.log("getKeyValue", key)
   try {
     const value = await db.get(key)
     return value

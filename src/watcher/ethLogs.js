@@ -4,12 +4,9 @@ const { numberToHex } = require("./utils")
 const { sleep } = require("./utils")
 const { persistKeyValue, getKeyValue } = require("../db/utils")
 
-
 const RPC_ENDPOINT_WS = "wss://eth-mainnet.g.alchemy.com/v2/wmGekVuyKiKzd42I0tkfFhXySiqnRxFs"
+const MAX_BLOCK = "ETH_MAX_BLOCK"
 const web3 = new Web3(RPC_ENDPOINT_WS)
-const MAX_BLOCK = "MAX_BLOCK"
-// const web3 = new Web3("wss://eth-mainnet.g.alchemy.com/v2/wmGekVuyKiKzd42I0tkfFhXySiqnRxFs")
-// const abi = require("../abi/Uni.json")
 
 const WebSocket = require('ws');
 const ReconnectingWebSocket = require('reconnecting-websocket');
@@ -46,7 +43,6 @@ const saveToDB = async (event) => {
   // console.log("contractAccount", contractAccount)
   // console.log("txHash", txHash)
   // console.log("senderAddress", senderAddress)
-  // console.log("blockNumber", blockNumber)
   // console.log("blockHash", blockHash)
 }
 
@@ -85,6 +81,7 @@ const watchEthLogs = async (client, fromBlock) => {
     await sleep(1000);
     client.send(JSON.stringify(query));
   });
+
   client.addEventListener("message", async (event) => {
     let data = JSON.parse(event.data);
     if (data.params) event_result = data.params.result;
@@ -114,15 +111,15 @@ const watchEthLogs = async (client, fromBlock) => {
 }
 
 const watchEth = async () => {
+  let client = new ReconnectingWebSocket(RPC_ENDPOINT_WS, [], { WebSocket: WebSocket })
+
   // let fromBlock = await getKeyValue(MAX_BLOCK);
   // fromBlock = fromBlock ? fromBlock : CONTRACT_INIT_BLOCK_NUMBER
-  // console.log("fromBlock", fromBlock)
 
-  // const value = 17926720
-  // console.log("persist", await persistKeyValue(MAX_BLOCK, value));
-
-  let client = new ReconnectingWebSocket(RPC_ENDPOINT_WS, [], { WebSocket: WebSocket })
   let fromBlock = 17925728
+
+  console.log("fromBlock", fromBlock)
+
   await watchEthLogs(client, fromBlock)
 }
 

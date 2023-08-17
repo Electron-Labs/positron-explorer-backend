@@ -1,9 +1,14 @@
 const nearAPI = require('near-api-js');
 const { sleep, createNearConnection } = require("./utils")
+const { persistKeyValue, getKeyValue } = require("../db/utils")
 
 const homedir = require("os").homedir();
 const credentials_dir = ".near-credentials";
 const currentCredentialsPath = require('path').join(homedir, credentials_dir);
+
+const MAX_BLOCK_HEIGHT = "NEAR_MAX_BLOCK_HEIGHT"
+const CONTRACT_ID = "zkbridge.admin_electronlabs.testnet"
+const CONTRACT_INIT_BLOCK_HEIGHT = 125211125
 
 async function retry(fn, ...args) {
   let r, e;
@@ -44,48 +49,9 @@ async function getChunk(near, nearArchival, hash) {
   return chunk;
 }
 
-async function extractTransactions(
-  startBlock, endBlock, contractAccountId, near, nearArchival
-) {
-  // creates an array of block hashes for given range
-  // let blockArr = [];
-  let blockHash = endBlock;
-  let transactions = [];
-  let nearNode = near;
-  do {
-    try {
-      let currentBlock = await retry(getBlock, near, nearArchival, blockHash);
-      console.debug("Going through blockHash", blockHash, currentBlock.header.height);
-      // logger.debug(`Going through blockHash, ${blockHash}, ${currentBlock.header.height}`);
-      let chunks = currentBlock.chunks.filter((chunk) => chunk.height_included == currentBlock.header.height);
-      chunks = chunks.map(({ chunk_hash }) => chunk_hash);
-      let chunkDetails = await Promise.all(
-        // chunks.map(chunk => nearNode.connection.provider.chunk(chunk))
-        chunks.map(chunk => retry(getChunk, near, nearArchival, chunk))
-      );
-      let transactions_tmp = chunkDetails.flatMap((chunk) => (chunk.transactions || []).filter((tx) => {
-        if (tx.receiver_id === contractAccountId) {
-          // logger.debug(`txHash ${tx.hash}`);
-          return true;
-        }
-        return false;
-      }));
-      if (transactions_tmp.length != 0) {
-        console.debug(`Transactions found in block ${currentBlock.header.hash}`);
-        // logger.debug(`Transactions found in block ${currentBlock.header.hash}`);
-      }
-      transactions_tmp.reverse();
-      transactions = transactions.concat(transactions_tmp);
-      blockHash = currentBlock.header.prev_hash;
-      console.log("prev blockHash", blockHash)
-    } catch (err) {
-      console.warn(`extractTransactions ${err}, sleeping for 30 seconds`);
-      // logger.warn(`extractTransactions ${err}, sleeping for 30 seconds`);
-      await sleep(30 * 1000);
-    }
-  } while (blockHash !== startBlock);
-  transactions.reverse();
-  return transactions;
+const saveMaxBlockNumber = async (event) => {
+  // const blockNumber = parseInt(event.blockNumber, 16)
+  // await persistKeyValue(MAX_BLOCK, blockNumber)
 }
 
 async function getTxData(near, nearArchival, txHash, accountId) {
@@ -105,15 +71,67 @@ async function getTxData(near, nearArchival, txHash, accountId) {
   return txData;
 }
 
-const watchNearLogs = async (nearConnection, nearArchival, contractAccountId) => {
-  const transactions = await extractTransactions("5r7rweskNxYuG23cFqBeuFjcaSKX3M4RZ9vnsqcPdpW5", "6f7rcnoFUc1J93DpbdP4XwDzCwqnVuV1dS4CNLQXJMkA", contractAccountId, nearConnection, nearArchival)
-  console.log("transactions", transactions)
+const getReceiptsOutcome = async (nearConnection, nearArchival, blockHeight) => {
+  var logs = []
+  try {
+    // TODO: retry?
+    let block = await getBlock(nearConnection, nearArchival, blockHeight);
+    let chunks = block.chunks.filter((chunk) => chunk.height_included == block.header.height);
+    if (chunks.length == 0) return logs
+    const chunkHashes = chunks.map((chunk) => chunk.chunk_hash);
+    let chunkDetails = await Promise.all(chunkHashes.map(chunkHash => retry(getChunk, nearConnection, nearArchival, chunkHash)))
+    let transactions = chunkDetails.flatMap((chunkDetail) => (chunkDetail.transactions || []).filter((transaction) => {
+      if (transaction.receiver_id == CONTRACT_ID) return true;
+      return false;
+    }));
+    if (transactions.length == 0) return logs
+    console.log("flag1")
+    let txDataPromises = []
+    transactions.map((transaction) => {
+      txDataPromises.push(getTxData(nearConnection, nearArchival, transaction.hash, CONTRACT_ID))
+    })
+    const txDataResult = await Promise.all(txDataPromises)
+    txDataResult.map((result) => logs.push(result.receipts_outcome))
+    return logs
+  } catch (err) {
+    return logs
+  }
+}
 
-  console.log("transaction hash", transactions[0].hash)
-  const txData = await getTxData(nearConnection, nearArchival, transactions[0].hash, contractAccountId)
-  console.log("txData", txData)
+const saveToDb = async (eventJsons) => {
+  const mintEvents = eventJsons.filter((eventJson) => eventJson.event == "mint")
+  const burnEvents = eventJsons.filter((eventJson) => eventJson.event == "burn")
+  console.log("mintEvents", mintEvents)
+  console.log("burnEvents", burnEvents)
+}
 
-  transactions[0]
+const watchNearLogs = async (nearConnection, nearArchival) => {
+  let fromBlockHeight = await getKeyValue(MAX_BLOCK_HEIGHT);
+  // console.log("Start scanning from height:", fromBlockHeight)
+  fromBlockHeight = fromBlockHeight ? fromBlockHeight : CONTRACT_INIT_BLOCK_HEIGHT
+  const status = await nearConnection.connection.provider.status();
+  const latestBlockHeight = status.sync_info.latest_block_height
+
+  // TODO: ensure each valid block gets been scanned
+  let size = 500
+  for (let height = 134991700; height <= latestBlockHeight; height += size) {
+    let logsPromises = []
+    let blockNumbers = Array(size).fill().map((element, index) => index + height)
+    blockNumbers.map((blockNumber) => logsPromises.push(getReceiptsOutcome(nearConnection, nearArchival, blockNumber)))
+    const promiseResults = await Promise.allSettled(logsPromises)
+    console.log("promiseResults", promiseResults)
+    const receiptsOutcomes = promiseResults.map((result) => result.value).flatMap((value) => value)
+    for (let receipt_idx=0; receipt_idx<receiptsOutcomes.length;receipt_idx++) {
+      // receiptsOutcomes[i].map((elm) => console.log(elm.outcome.logs[0]))
+      // TODO: can outcome.logs.length be > 1
+      const eventStrings = receiptsOutcomes[receipt_idx].map((receiptsOutcome) => receiptsOutcome.outcome.logs).flatMap((events) => events)
+      const eventJsons = eventStrings.map((eventString) => JSON.parse(eventString.substring(eventString.indexOf(":")+1)))
+      await saveToDb(eventJsons)
+    }
+    // TODO:       await saveMaxBlockNumber(maxBlockEvent)
+    break
+  }
+
 }
 
 const watchNear = async () => {
@@ -121,9 +139,7 @@ const watchNear = async () => {
   let nearConnection = await createNearConnection(network, `https://rpc.${network}.near.org`, currentCredentialsPath);
   let nearArchival = await createNearConnection(network, `https://archival-rpc.testnet.near.org`, currentCredentialsPath);
 
-  const contractAccountId = "switchboard-v2.testnet"
-
-  await watchNearLogs(nearConnection, nearArchival, contractAccountId)
+  await watchNearLogs(nearConnection, nearArchival)
 }
 
 module.exports = { watchNear }
