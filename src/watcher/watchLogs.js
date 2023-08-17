@@ -10,4 +10,9 @@ const watchLogs = async () => {
 
 setTimeout(watchLogs, 0);
 
-// nonce, sender_address, source_tx, receiver_address, destination_tx, action
+// nonce, sender_address, source_tx, receiver_address, destination_tx, action, amount, time_origin, time_destination,
+// token_address_origin, status
+
+// status: {completed, pending, failed}
+// action: {lock, unlock}
+// token_address_origin: only for eth
