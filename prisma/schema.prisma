@@ -9,3 +9,30 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+enum Action {
+  Lock
+  Unlock
+}
+
+enum Status {
+  Completed
+  Pending
+  Failed
+}
+
+model eth_near {
+  nonce               BigInt
+  originTime          DateTime?
+  destinationTime     DateTime?
+  senderAddress       String?   @db.VarChar(64)
+  sourceTx            String?   @db.VarChar(66)
+  receiverAddress     String?   @db.VarChar(64)
+  destinationTx       String?   @db.VarChar(66)
+  amount              BigInt
+  action              Action
+  tokenAddressOrigin  String?    @db.VarChar(64)
+  status Status
+
+  @@unique([nonce, action])
+}

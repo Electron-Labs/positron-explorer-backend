@@ -1,6 +1,8 @@
 const nearAPI = require('near-api-js');
 const { sleep, createNearConnection } = require("./utils")
 const { persistKeyValue, getKeyValue } = require("../db/utils")
+const { PrismaClient, Action, Status } = require('@prisma/client')
+const prisma = new PrismaClient()
 
 const homedir = require("os").homedir();
 const credentials_dir = ".near-credentials";
@@ -9,6 +11,7 @@ const currentCredentialsPath = require('path').join(homedir, credentials_dir);
 const MAX_BLOCK = "NEAR_MAX_BLOCK"
 const CONTRACT_ID = "zkbridge.admin_electronlabs.testnet"
 const CONTRACT_INIT_BLOCK_HEIGHT = 125211125
+const EVENT_JSON_KEY = "EVENT_JSON";
 
 async function retry(fn, ...args) {
   let r, e;
@@ -113,11 +116,65 @@ const getReceiptsOutcome = async (nearConnection, nearArchival, blockHeight) => 
   return logs
 }
 
-const saveToDb = async (eventJsons) => {
-  const mintEvents = eventJsons.filter((eventJson) => eventJson.event == "mint")
-  const burnEvents = eventJsons.filter((eventJson) => eventJson.event == "burn")
-  console.log("mintEvents", mintEvents)
-  console.log("burnEvents", burnEvents)
+const parseEventString = (eventString) => {
+  let json = {}
+  if (eventString.startsWith(EVENT_JSON_KEY)) json = JSON.parse(eventString.substring(eventString.indexOf(":") + 1))
+  return json
+}
+
+const saveToDB = async (eventJsonsArray, txHashesArray) => {
+  for (let i = 0; i < eventJsonsArray.length; i++) {
+    let eventJsons = eventJsonsArray[i]
+    for (let j = 0; j < eventJsons.length; j++) {
+      let eventJson = eventJsons[j]
+      // TODO: skip if empty eventJson
+      // TODO: destinationTime
+      const nonce = eventJson.nonce
+      if (eventJson.event == "mint") {
+        const receiverAddress = eventJson.recipient.address
+        const destinationTx = txHashesArray[i][j]
+        const status = Status.Completed
+
+        // TODO: update only if it exists
+        console.log("destinationTx", destinationTx)
+        const updateFromNear = await prisma.eth_near.update({
+          where: {
+            nonce_action: {
+              nonce: nonce,
+              action: Action.Lock
+            },
+          },
+          data: {
+            receiverAddress: receiverAddress,
+            destinationTx: destinationTx,
+            status: status
+          },
+        })
+        console.log(updateFromNear)
+      } else if (eventJson.event == "burn") {
+        const senderAddress = eventJson.recipient.address
+        const originTx = txHashesArray[i][j]
+        const status = Status.Completed
+        const tokenAddressOrigin = eventJson.token.address
+        console.log("tokenAddressOrigin---", tokenAddressOrigin)
+        const updateFromNear = await prisma.eth_near.update({
+          where: {
+            nonce_action: {
+              nonce: nonce,
+              action: Action.Unlock
+            },
+          },
+          data: {
+            senderAddress: senderAddress,
+            originTx: originTx,
+            tokenAddressOrigin: tokenAddressOrigin,
+            status: status
+          },
+        })
+        console.log(updateFromNear)
+      }
+    }
+  }
 }
 
 const watchNearLogs = async (nearConnection, nearArchival) => {
@@ -130,7 +187,7 @@ const watchNearLogs = async (nearConnection, nearArchival) => {
   let MAX_NUM_BLOCKS = 1000
   let size
   // TODO: use latestBlockHeight
-  for (let height = 134991700; height < latestBlockHeight; height += size) {
+  for (let height = 134933108; height < latestBlockHeight; height += size) {
     size = Math.min(MAX_NUM_BLOCKS, latestBlockHeight - height)
     let receiptsOutcomesPromisesForBlocks = []
     let blockNumbers = Array(size).fill().map((element, index) => index + height)
@@ -139,12 +196,39 @@ const watchNearLogs = async (nearConnection, nearArchival) => {
       retry(getReceiptsOutcome, nearConnection, nearArchival, blockNumber))
     )
     const receiptsOutcomes = (await Promise.all(receiptsOutcomesPromisesForBlocks)).flatMap((receiptsOutcomes_) => receiptsOutcomes_)
+    const eventJsonsArray = []
+    const txHashesArray = []
+
     for (let receipt_idx = 0; receipt_idx < receiptsOutcomes.length; receipt_idx++) {
-      const eventStrings = receiptsOutcomes[receipt_idx].map((receiptsOutcome) => receiptsOutcome.outcome.logs).flatMap((events) => events)
-      const eventJsons = eventStrings.map((eventString) => JSON.parse(eventString.substring(eventString.indexOf(":") + 1)))
-      await saveToDb(eventJsons)
+      const logsStrings = receiptsOutcomes[receipt_idx].map((receiptsOutcome) => receiptsOutcome.outcome.logs)
+      const txHashes = receiptsOutcomes[receipt_idx].map((receiptsOutcome) => receiptsOutcome.id)
+      let logStrings = []
+      let txHashesFlat = []
+      for (let i = 0; i < logsStrings.length; i++) {
+        for (let j = 0; j < logsStrings[i].length; j++) {
+          const logString = logsStrings[i][j]
+          console.log("logString", logString)
+          console.log("logString", typeof logString)
+          if (logString.startsWith(EVENT_JSON_KEY)) {
+            logStrings.push(logString)
+            txHashesFlat.push(txHashes[i])
+          }
+        }
+        // logStrings = [...logStrings, ...logsStrings[i]]
+        // txHashesFlat = [...txHashesFlat, ...Array(logsStrings[i].length).fill(txHashes[i])]
+      }
+      // TODO: use parse
+      const eventJsons = logStrings.map((eventString) => JSON.parse(eventString.substring(eventString.indexOf(":") + 1)))
+      eventJsonsArray.push(eventJsons)
+      txHashesArray.push(txHashesFlat)
     }
-    await saveMaxBlockNumber(blockNumbers[blockNumbers.length - 1])
+
+    if (eventJsonsArray.length) {
+      console.log('saving data from near...')
+      await saveToDB(eventJsonsArray, txHashesArray)
+      console.log('saved near data')
+    }
+    // await saveMaxBlockNumber(blockNumbers[blockNumbers.length - 1])
   }
   // setInterval(watchLogs, 2 * 1000);
 }
