@@ -1,6 +1,5 @@
 const nearAPI = require('near-api-js');
 const { sleep, createNearConnection } = require("./utils")
-const { persistKeyValue, getKeyValue } = require("../db/utils")
 const { PrismaClient, Action, Status } = require('@prisma/client')
 const prisma = new PrismaClient()
 
@@ -8,7 +7,6 @@ const homedir = require("os").homedir();
 const credentials_dir = ".near-credentials";
 const currentCredentialsPath = require('path').join(homedir, credentials_dir);
 
-const MAX_BLOCK = "NEAR_MAX_BLOCK"
 const CONTRACT_ID = "zkbridge.admin_electronlabs.testnet"
 const CONTRACT_INIT_BLOCK_HEIGHT = 125211125
 const EVENT_JSON_KEY = "EVENT_JSON";
@@ -54,10 +52,6 @@ async function getChunk(near, nearArchival, hash) {
     chunk = await nearArchival.connection.provider.chunk(hash);
   }
   return chunk;
-}
-
-const saveMaxBlockNumber = async (blockNumber) => {
-  await persistKeyValue(MAX_BLOCK, blockNumber)
 }
 
 async function getTxData(near, nearArchival, txHash, accountId) {
@@ -116,10 +110,9 @@ const getReceiptsOutcome = async (nearConnection, nearArchival, blockHeight) => 
   return logs
 }
 
-const parseEventString = (eventString) => {
-  let json = {}
-  if (eventString.startsWith(EVENT_JSON_KEY)) json = JSON.parse(eventString.substring(eventString.indexOf(":") + 1))
-  return json
+const getLatestBlockHeight = async (nearConnection) => {
+  const status = await nearConnection.connection.provider.status();
+  return status.sync_info.latest_block_height
 }
 
 const saveToDB = async (eventJsonsArray, txHashesArray) => {
@@ -127,7 +120,6 @@ const saveToDB = async (eventJsonsArray, txHashesArray) => {
     let eventJsons = eventJsonsArray[i]
     for (let j = 0; j < eventJsons.length; j++) {
       let eventJson = eventJsons[j]
-      // TODO: skip if empty eventJson
       // TODO: destinationTime
       const nonce = eventJson.nonce
       if (eventJson.event == "mint") {
@@ -135,62 +127,78 @@ const saveToDB = async (eventJsonsArray, txHashesArray) => {
         const destinationTx = txHashesArray[i][j]
         const status = Status.Completed
 
-        // TODO: update only if it exists
-        console.log("destinationTx", destinationTx)
-        const updateFromNear = await prisma.eth_near.update({
+        // TODO: what is record doesn't exist?
+        // When to fail?
+        const record = await prisma.eth_near.findUnique({
           where: {
             nonce_action: {
               nonce: nonce,
               action: Action.Lock
+            }
+          }
+        });
+        if (record) {
+          const updateFromNear = await prisma.eth_near.update({
+            where: {
+              nonce_action: {
+                nonce: nonce,
+                action: Action.Lock
+              },
             },
-          },
-          data: {
-            receiverAddress: receiverAddress,
-            destinationTx: destinationTx,
-            status: status
-          },
-        })
-        console.log(updateFromNear)
+            data: {
+              receiverAddress: receiverAddress,
+              destinationTx: destinationTx,
+              status: status
+            },
+          })
+          console.log(updateFromNear)
+        }
       } else if (eventJson.event == "burn") {
         const senderAddress = eventJson.recipient.address
         const originTx = txHashesArray[i][j]
         const status = Status.Completed
         const tokenAddressOrigin = eventJson.token.address
         console.log("tokenAddressOrigin---", tokenAddressOrigin)
-        const updateFromNear = await prisma.eth_near.update({
+        const record = await prisma.eth_near.findUnique({
           where: {
             nonce_action: {
               nonce: nonce,
               action: Action.Unlock
+            }
+          }
+        });
+        if (record) {
+          const updateFromNear = await prisma.eth_near.update({
+            where: {
+              nonce_action: {
+                nonce: nonce,
+                action: Action.Unlock
+              },
             },
-          },
-          data: {
-            senderAddress: senderAddress,
-            originTx: originTx,
-            tokenAddressOrigin: tokenAddressOrigin,
-            status: status
-          },
-        })
-        console.log(updateFromNear)
+            data: {
+              senderAddress: senderAddress,
+              originTx: originTx,
+              tokenAddressOrigin: tokenAddressOrigin,
+              status: status
+            },
+          })
+          console.log(updateFromNear)
+        }
       }
     }
   }
 }
 
-const watchNearLogs = async (nearConnection, nearArchival) => {
-  let fromBlockHeight = await getKeyValue(MAX_BLOCK);
-  fromBlockHeight = fromBlockHeight ? fromBlockHeight : CONTRACT_INIT_BLOCK_HEIGHT
-  const status = await nearConnection.connection.provider.status();
-  const latestBlockHeight = status.sync_info.latest_block_height
-
+const getNearLogs = async (nearConnection, nearArchival, fromBlock, toBlock) => {
   // TODO: ensure each valid block gets been scanned
-  let MAX_NUM_BLOCKS = 1000
+  let BATCH_SIZE = 1000
   let size
-  // TODO: use latestBlockHeight
-  for (let height = 134933108; height < latestBlockHeight; height += size) {
-    size = Math.min(MAX_NUM_BLOCKS, latestBlockHeight - height)
+  // TODO: check
+  let height = fromBlock
+  do {
+    size = Math.min(BATCH_SIZE, toBlock - height + 1)
     let receiptsOutcomesPromisesForBlocks = []
-    let blockNumbers = Array(size).fill().map((element, index) => index + height)
+    let blockNumbers = Array(size).fill().map((_, index) => index + height)
     console.log(`Scanning block range [${blockNumbers[0]}:${blockNumbers[blockNumbers.length - 1]}]`)
     blockNumbers.map((blockNumber) => receiptsOutcomesPromisesForBlocks.push(
       retry(getReceiptsOutcome, nearConnection, nearArchival, blockNumber))
@@ -207,17 +215,12 @@ const watchNearLogs = async (nearConnection, nearArchival) => {
       for (let i = 0; i < logsStrings.length; i++) {
         for (let j = 0; j < logsStrings[i].length; j++) {
           const logString = logsStrings[i][j]
-          console.log("logString", logString)
-          console.log("logString", typeof logString)
           if (logString.startsWith(EVENT_JSON_KEY)) {
             logStrings.push(logString)
             txHashesFlat.push(txHashes[i])
           }
         }
-        // logStrings = [...logStrings, ...logsStrings[i]]
-        // txHashesFlat = [...txHashesFlat, ...Array(logsStrings[i].length).fill(txHashes[i])]
       }
-      // TODO: use parse
       const eventJsons = logStrings.map((eventString) => JSON.parse(eventString.substring(eventString.indexOf(":") + 1)))
       eventJsonsArray.push(eventJsons)
       txHashesArray.push(txHashesFlat)
@@ -228,17 +231,36 @@ const watchNearLogs = async (nearConnection, nearArchival) => {
       await saveToDB(eventJsonsArray, txHashesArray)
       console.log('saved near data')
     }
-    // await saveMaxBlockNumber(blockNumbers[blockNumbers.length - 1])
-  }
-  // setInterval(watchLogs, 2 * 1000);
+    height += size
+  } while (height <= toBlock);
 }
 
-const watchNear = async () => {
-  network = "testnet"
+const watchNearLogs = async (nearConnection, nearArchival, fromBlock, toBlock) => {
+  await getNearLogs(nearConnection, nearArchival, fromBlock, toBlock)
+  await sleep(1000 * 3)
+
+  const latestBlockHeight = await getLatestBlockHeight(nearConnection)
+  await watchNearLogs(nearConnection, nearArchival, Math.min(toBlock + 1, latestBlockHeight), latestBlockHeight)
+}
+
+const syncNear = async (network, ...ranges) => {
   let nearConnection = await createNearConnection(network, `https://rpc.${network}.near.org`, currentCredentialsPath);
   let nearArchival = await createNearConnection(network, `https://archival-rpc.testnet.near.org`, currentCredentialsPath);
 
-  await watchNearLogs(nearConnection, nearArchival)
+  for (let i = 0; i < ranges.length; i++) {
+    const range = ranges[i]
+    await getNearLogs(nearConnection, nearArchival, range.fromBlock, range.toBlock)
+  }
 }
 
-module.exports = { watchNear }
+const watchNear = async (network) => {
+  let nearConnection = await createNearConnection(network, `https://rpc.${network}.near.org`, currentCredentialsPath);
+  let nearArchival = await createNearConnection(network, `https://archival-rpc.testnet.near.org`, currentCredentialsPath);
+
+  const latestBlockHeight = await getLatestBlockHeight(nearConnection)
+
+  console.log("watching near logs...")
+  await watchNearLogs(nearConnection, nearArchival, latestBlockHeight, latestBlockHeight)
+}
+
+module.exports = { watchNear, syncNear }
