@@ -1,6 +1,5 @@
 const Web3 = require('web3');
-const { numberToHex } = require("./utils")
-const { sleep } = require("./utils")
+const { numberToHex, sleep, getEmptyData } = require("./utils")
 const { PrismaClient, Action, Status } = require('@prisma/client')
 const prisma = new PrismaClient()
 const {
@@ -14,7 +13,7 @@ const {
   CONTRACT_ADDRESS,
   ABI,
   eth_subscribe
-} = require("./ethConstants")
+} = require("./ethUtils")
 
 const web3 = new Web3(RPC_ENDPOINT_WS)
 
@@ -38,23 +37,55 @@ async function getTransactionReceipt(web3, txHash) {
   return receipt;
 }
 
-const saveToDB = async (data) => {
+const saveToDB = async (dataArray) => {
   console.log('saving data from eth...')
-  const savedData = await prisma.eth_near.createMany({ data: data, skipDuplicates: true })
-  console.log('saved eth data', savedData)
+  const newRecords = []
+
+  for (let i = 0; i < dataArray.length; i++) {
+    const data = dataArray[i]
+    const record = await prisma.eth_near.findUnique({
+      where: {
+        nonce_action: {
+          nonce: data.nonce,
+          action: data.action
+        }
+      }
+    });
+
+    if (!record) {
+      data.status = Status.Pending
+      newRecords.push(data)
+    }
+    else {
+      const nonce = data.nonce
+      const action = data.action
+      delete data.nonce
+      delete data.action
+      data.status = Status.Completed
+
+      const updated = await prisma.eth_near.update({
+        where: {
+          nonce_action: {
+            nonce: nonce,
+            action: action
+          },
+        },
+        data: data,
+      })
+      console.log("eth updated: ", updated)
+    }
+  }
+
+  if (newRecords.length) {
+    const created = await prisma.eth_near.createMany({ data: newRecords, skipDuplicates: true })
+    console.log(`eth created [count=${created.length}]`)
+  }
+
+  console.log('saved eth data')
 }
 
 const extractDataFromEvent = async (event, action) => {
-  let nonce
-  let originTime
-  let destinationTime
-  let senderAddress
-  let receiverAddress
-  let sourceTx
-  let destinationTx
-  let amount
-  let tokenAddressOrigin
-  let status
+  const data = getEmptyData()
 
   let txHash
   let txReceipt
@@ -80,35 +111,22 @@ const extractDataFromEvent = async (event, action) => {
   const datetime = new Date(block.timestamp * 1000);
 
   if (action == Action.Lock) {
-    nonce = decodedLog.lockNonce
-    senderAddress = txReceipt.from
-    sourceTx = txHash
-    amount = decodedLog.amount
-    tokenAddressOrigin = decodedLog.token
-    originTime = datetime
+    data.nonce = decodedLog.lockNonce
+    data.senderAddress = txReceipt.from
+    data.sourceTx = txHash
+    data.amount = decodedLog.amount
+    data.tokenAddressSource = decodedLog.token
+    data.sourceTime = datetime
   }
   else {
-    nonce = decodedLog.unlockNonce
-    receiverAddress = txReceipt.from
-    destinationTx = txHash
-    amount = decodedLog.amount
-    destinationTime = datetime
+    data.nonce = decodedLog.unlockNonce
+    data.receiverAddress = txReceipt.from
+    data.destinationTx = txHash
+    data.amount = decodedLog.amount
+    data.destinationTime = datetime
   }
 
-  status = Status.Pending
-
-  const data = {
-    nonce: nonce,
-    originTime: originTime,
-    destinationTime: destinationTime,
-    action: action,
-    senderAddress: senderAddress,
-    receiverAddress: receiverAddress,
-    sourceTx: sourceTx,
-    destinationTx: destinationTx,
-    amount: amount,
-    status: status
-  }
+  data.action = action
 
   return data
 }
@@ -127,8 +145,8 @@ const processEvent = async (event, action) => {
       console.warn(`Websocket error event ${JSON.stringify(data)}`);
     }
     // TODO: try?
-    const data = await Promise.all(extractDataPromises)
-    await saveToDB(data)
+    const dataArray = await Promise.all(extractDataPromises)
+    await saveToDB(dataArray)
   }
 }
 

@@ -15,6 +15,8 @@ const deleteAllData = async () => {
 }
 
 const runCustomQuery = async () => {
+  const result = await prisma.$queryRaw`select current_database();`
+  console.log(result);
 }
 
 async function main() {

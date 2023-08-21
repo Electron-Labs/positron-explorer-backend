@@ -1,5 +1,5 @@
 const nearAPI = require('near-api-js');
-const { sleep, createNearConnection } = require("./utils")
+const { sleep, createNearConnection, getEmptyData } = require("./utils")
 const { PrismaClient, Action, Status } = require('@prisma/client')
 const prisma = new PrismaClient()
 
@@ -76,6 +76,7 @@ const getReceiptsOutcome = async (nearConnection, nearArchival, blockHeight) => 
   // TODO: retry?
   let block = await getBlock(nearConnection, nearArchival, blockHeight);
   if (block) {
+    const timestamp = block.header.timestamp_nanosec / 10 ** 9
     // try {
     let chunks = block.chunks.filter((chunk) => chunk.height_included == block.header.height);
     if (chunks.length == 0) return logs
@@ -98,7 +99,10 @@ const getReceiptsOutcome = async (nearConnection, nearArchival, blockHeight) => 
     })
     const txDataResult = await Promise.all(txDataPromises)
 
-    txDataResult.map((result) => logs.push(result.receipts_outcome))
+    txDataResult.map((result) => {
+      result.receipts_outcome.map((elm) => elm.outcome["timestamp"] = timestamp)
+      logs.push(result.receipts_outcome)
+    })
 
     return logs
     // } catch (err) {
@@ -115,78 +119,63 @@ const getLatestBlockHeight = async (nearConnection) => {
   return status.sync_info.latest_block_height
 }
 
-const saveToDB = async (eventJsonsArray, txHashesArray) => {
-  for (let i = 0; i < eventJsonsArray.length; i++) {
-    let eventJsons = eventJsonsArray[i]
-    for (let j = 0; j < eventJsons.length; j++) {
-      let eventJson = eventJsons[j]
-      // TODO: destinationTime
-      const nonce = eventJson.nonce
-      if (eventJson.event == "mint") {
-        const receiverAddress = eventJson.recipient.address
-        const destinationTx = txHashesArray[i][j]
-        const status = Status.Completed
-
-        // TODO: what is record doesn't exist?
-        // When to fail?
-        const record = await prisma.eth_near.findUnique({
-          where: {
-            nonce_action: {
-              nonce: nonce,
-              action: Action.Lock
-            }
-          }
-        });
-        if (record) {
-          const updateFromNear = await prisma.eth_near.update({
-            where: {
-              nonce_action: {
-                nonce: nonce,
-                action: Action.Lock
-              },
-            },
-            data: {
-              receiverAddress: receiverAddress,
-              destinationTx: destinationTx,
-              status: status
-            },
-          })
-          console.log(updateFromNear)
-        }
-      } else if (eventJson.event == "burn") {
-        const senderAddress = eventJson.recipient.address
-        const originTx = txHashesArray[i][j]
-        const status = Status.Completed
-        const tokenAddressOrigin = eventJson.token.address
-        console.log("tokenAddressOrigin---", tokenAddressOrigin)
-        const record = await prisma.eth_near.findUnique({
-          where: {
-            nonce_action: {
-              nonce: nonce,
-              action: Action.Unlock
-            }
-          }
-        });
-        if (record) {
-          const updateFromNear = await prisma.eth_near.update({
-            where: {
-              nonce_action: {
-                nonce: nonce,
-                action: Action.Unlock
-              },
-            },
-            data: {
-              senderAddress: senderAddress,
-              originTx: originTx,
-              tokenAddressOrigin: tokenAddressOrigin,
-              status: status
-            },
-          })
-          console.log(updateFromNear)
-        }
+const saveToDB = async (data) => {
+  console.log('saving data from near...')
+  const record = await prisma.eth_near.findUnique({
+    where: {
+      nonce_action: {
+        nonce: data.nonce,
+        action: data.action
       }
     }
+  });
+  let savedData
+  if (!record) {
+    data.status = Status.Pending
+    savedData = await prisma.eth_near.create({ data: data })
   }
+  else {
+    const nonce = data.nonce
+    const action = data.action
+    delete data.nonce
+    delete data.action
+    data.status = Status.Completed
+
+    await prisma.eth_near.update({
+      where: {
+        nonce_action: {
+          nonce: nonce,
+          action: action
+        },
+      },
+      data: data,
+    })
+  }
+  console.log('saved near data')
+}
+const extractDataFromEvent = async (eventJson, txHash, timestamp) => {
+  const datetime = new Date(timestamp * 1000);
+
+  const data = getEmptyData()
+
+  if (eventJson.event == "mint") {
+    data.nonce = eventJson.nonce
+    data.receiverAddress = eventJson.recipient.address
+    data.destinationTx = txHash
+    data.amount = eventJson.amount
+    data.destinationTime = datetime
+    data.action = Action.Lock
+  } else if (eventJson.event == "burn") {
+    data.nonce = eventJson.nonce
+    data.senderAddress = eventJson.recipient.address
+    data.sourceTx = txHash
+    data.tokenAddressSource = eventJson.token.address
+    data.amount = eventJson.amount
+    data.sourceTime = datetime
+    data.action = Action.Unlock
+  }
+
+  return data
 }
 
 const getNearLogs = async (nearConnection, nearArchival, fromBlock, toBlock) => {
@@ -206,31 +195,41 @@ const getNearLogs = async (nearConnection, nearArchival, fromBlock, toBlock) => 
     const receiptsOutcomes = (await Promise.all(receiptsOutcomesPromisesForBlocks)).flatMap((receiptsOutcomes_) => receiptsOutcomes_)
     const eventJsonsArray = []
     const txHashesArray = []
+    const timestampsArray = []
 
     for (let receipt_idx = 0; receipt_idx < receiptsOutcomes.length; receipt_idx++) {
       const logsStrings = receiptsOutcomes[receipt_idx].map((receiptsOutcome) => receiptsOutcome.outcome.logs)
       const txHashes = receiptsOutcomes[receipt_idx].map((receiptsOutcome) => receiptsOutcome.id)
+      const timestamps = receiptsOutcomes[receipt_idx].map((receiptsOutcome) => receiptsOutcome.outcome.timestamp)
       let logStrings = []
       let txHashesFlat = []
+      let timestampsFlat = []
       for (let i = 0; i < logsStrings.length; i++) {
         for (let j = 0; j < logsStrings[i].length; j++) {
           const logString = logsStrings[i][j]
           if (logString.startsWith(EVENT_JSON_KEY)) {
             logStrings.push(logString)
             txHashesFlat.push(txHashes[i])
+            timestampsFlat.push(timestamps[i])
           }
         }
       }
       const eventJsons = logStrings.map((eventString) => JSON.parse(eventString.substring(eventString.indexOf(":") + 1)))
       eventJsonsArray.push(eventJsons)
       txHashesArray.push(txHashesFlat)
+      timestampsArray.push(timestampsFlat)
     }
 
-    if (eventJsonsArray.length) {
-      console.log('saving data from near...')
-      await saveToDB(eventJsonsArray, txHashesArray)
-      console.log('saved near data')
+
+    for (let i = 0; i < eventJsonsArray.length; i++) {
+      let eventJsons = eventJsonsArray[i]
+      for (let j = 0; j < eventJsons.length; j++) {
+        let eventJson = eventJsons[j]
+        const data = await extractDataFromEvent(eventJson, txHashesArray[i][j], timestampsArray[i][j])
+        if (data.nonce) await saveToDB(data)
+      }
     }
+
     height += size
   } while (height <= toBlock);
 }
@@ -264,3 +263,5 @@ const watchNear = async (network) => {
 }
 
 module.exports = { watchNear, syncNear }
+
+// TODO: retry on fail

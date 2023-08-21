@@ -23,7 +23,7 @@ enum Status {
 
 model eth_near {
   nonce               BigInt
-  originTime          DateTime?
+  sourceTime          DateTime?
   destinationTime     DateTime?
   senderAddress       String?   @db.VarChar(64)
   sourceTx            String?   @db.VarChar(66)
@@ -31,7 +31,7 @@ model eth_near {
   destinationTx       String?   @db.VarChar(66)
   amount              BigInt
   action              Action
-  tokenAddressOrigin  String?    @db.VarChar(64)
+  tokenAddressSource  String?    @db.VarChar(64)
   status Status
 
   @@unique([nonce, action])

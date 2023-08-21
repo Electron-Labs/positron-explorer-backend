@@ -43,4 +43,21 @@ async function createNearConnection(networkId, nodeUrl, credentialsPath) {
     return near_connection;
 }
 
-module.exports = { numberToHex, sleep, createNearConnection }
+
+const getEmptyData = () => {
+    return {
+        nonce: undefined,
+        sourceTime: undefined,
+        destinationTime: undefined,
+        senderAddress: undefined,
+        receiverAddress: undefined,
+        sourceTx: undefined,
+        destinationTx: undefined,
+        amount: undefined,
+        action: undefined,
+        tokenAddressSource: undefined,
+        status: undefined
+    }
+}
+
+module.exports = { numberToHex, sleep, createNearConnection, getEmptyData }
