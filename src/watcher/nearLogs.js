@@ -135,8 +135,12 @@ const saveToDB = async (data) => {
   if (!record) {
     data.status = Status.Pending
     savedData = await prisma.eth_near.create({ data: data })
+    console.log('near created')
   }
   else {
+    // don't update if a complete record already exists
+    if (!Object.values(record).includes(null)) return
+
     const nonce = data.nonce
     const action = data.action
     delete data.nonce
@@ -153,7 +157,7 @@ const saveToDB = async (data) => {
       data: data,
     })
   }
-  console.log('saved near data')
+  console.log('near updated')
 }
 const extractDataFromEvent = async (eventJson, txHash, timestamp, signerId) => {
   const datetime = new Date(timestamp * 1000);

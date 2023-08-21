@@ -1,9 +1,19 @@
 require("./watcher/watch")
-const { getRecords } = require('./dbOp');
+const { listTransactions, transaction } = require('./dbOp');
 
-async function records(ctx) {
+async function listTransactionsEndPoint(ctx) {
   try {
-    const records = await getRecords(ctx.params.n);
+    const records = await listTransactions(ctx.query);
+    ctx.status = 200;
+    ctx.body = records;
+  } catch (err) {
+    console.error(err);
+    ctx.status = 500;
+  }
+}
+async function transactionEndPoint(ctx) {
+  try {
+    const records = await transaction(ctx.query);
     ctx.status = 200;
     ctx.body = records;
   } catch (err) {
@@ -12,4 +22,4 @@ async function records(ctx) {
   }
 }
 
-module.exports = { records };
+module.exports = { listTransactionsEndPoint, transactionEndPoint };

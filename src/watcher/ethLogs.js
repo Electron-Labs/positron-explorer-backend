@@ -38,7 +38,6 @@ async function getTransactionReceipt(web3, txHash) {
 }
 
 const saveToDB = async (dataArray) => {
-  console.log('saving data from eth...')
   const newRecords = []
 
   for (let i = 0; i < dataArray.length; i++) {
@@ -57,6 +56,9 @@ const saveToDB = async (dataArray) => {
       newRecords.push(data)
     }
     else {
+      // don't update if a complete record already exists
+      if (!Object.values(record).includes(null)) return
+
       const nonce = data.nonce
       const action = data.action
       delete data.nonce
@@ -78,10 +80,8 @@ const saveToDB = async (dataArray) => {
 
   if (newRecords.length) {
     const created = await prisma.eth_near.createMany({ data: newRecords, skipDuplicates: true })
-    console.log(`eth created [count=${created.length}]`)
+    console.log(`eth created`)
   }
-
-  console.log('saved eth data')
 }
 
 const extractDataFromEvent = async (event, action) => {
