@@ -72,7 +72,7 @@ const saveToDB = async (dataArray) => {
         },
         data: data,
       })
-      console.log("eth updated: ", updated)
+      console.log("eth updated")
     }
   }
 
@@ -111,6 +111,7 @@ const extractDataFromEvent = async (event, action) => {
   const datetime = new Date(block.timestamp * 1000);
 
   if (action == Action.Lock) {
+    // TODO: accountId for receiver address
     data.nonce = decodedLog.lockNonce
     data.senderAddress = txReceipt.from
     data.sourceTx = txHash
@@ -120,7 +121,7 @@ const extractDataFromEvent = async (event, action) => {
   }
   else {
     data.nonce = decodedLog.unlockNonce
-    data.receiverAddress = txReceipt.from
+    // data.receiverAddress = txReceipt.from
     data.destinationTx = txHash
     data.amount = decodedLog.amount
     data.destinationTime = datetime

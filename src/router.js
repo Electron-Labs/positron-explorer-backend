@@ -2,13 +2,11 @@
 
 const Router = require('koa-router');
 const router = new Router();
-require("./watcher/watch")
-
+const { records } = require('./');
 const noop = require('./watcher/noop');
 
-// const watch = require('./watcher');
-// router.get('/watch', watch)
 router.get('/', noop);
+router.get('/records/:n', records)
 
 
 module.exports = router;

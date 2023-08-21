@@ -2,6 +2,7 @@ const { keyStores, connect } = require('near-api-js');
 const BN = require('bn.js')
 const numberToBN = require('number-to-bn');
 
+BigInt.prototype.toJSON = function () { return this.toString() }
 
 const numberToHex = (value) => {
     if ((value === null || value === undefined)) {

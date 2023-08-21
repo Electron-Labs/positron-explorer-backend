@@ -15,8 +15,15 @@ const deleteAllData = async () => {
 }
 
 const runCustomQuery = async () => {
-  const result = await prisma.$queryRaw`select current_database();`
+  const result = await prisma.$queryRaw`describe eth_near;`
   console.log(result);
+}
+
+const getRecords = async (n) => {
+  console.log("start records")
+  const data = await prisma.eth_near.findMany({})
+  console.log("records done")
+  return data
 }
 
 async function main() {
@@ -33,3 +40,5 @@ if (require.main == module) {
     process.exitCode = 1;
   });
 }
+
+module.exports = { getRecords }

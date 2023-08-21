@@ -101,6 +101,8 @@ const getReceiptsOutcome = async (nearConnection, nearArchival, blockHeight) => 
 
     txDataResult.map((result) => {
       result.receipts_outcome.map((elm) => elm.outcome["timestamp"] = timestamp)
+      result.receipts_outcome.map((elm) => elm.outcome["signerId"] = result.transaction.signer_id)
+      result.receipts_outcome.map((elm) => elm.outcome["hash"] = result.transaction.hash)
       logs.push(result.receipts_outcome)
     })
 
@@ -153,7 +155,7 @@ const saveToDB = async (data) => {
   }
   console.log('saved near data')
 }
-const extractDataFromEvent = async (eventJson, txHash, timestamp) => {
+const extractDataFromEvent = async (eventJson, txHash, timestamp, signerId) => {
   const datetime = new Date(timestamp * 1000);
 
   const data = getEmptyData()
@@ -167,9 +169,10 @@ const extractDataFromEvent = async (eventJson, txHash, timestamp) => {
     data.action = Action.Lock
   } else if (eventJson.event == "burn") {
     data.nonce = eventJson.nonce
-    data.senderAddress = eventJson.recipient.address
+    data.receiverAddress = `0x${eventJson.recipient.address}`
+    data.senderAddress = signerId
     data.sourceTx = txHash
-    data.tokenAddressSource = eventJson.token.address
+    data.tokenAddressSource = `0x${eventJson.token.address}`
     data.amount = eventJson.amount
     data.sourceTime = datetime
     data.action = Action.Unlock
@@ -196,14 +199,17 @@ const getNearLogs = async (nearConnection, nearArchival, fromBlock, toBlock) => 
     const eventJsonsArray = []
     const txHashesArray = []
     const timestampsArray = []
+    const signerIdsArray = []
 
     for (let receipt_idx = 0; receipt_idx < receiptsOutcomes.length; receipt_idx++) {
       const logsStrings = receiptsOutcomes[receipt_idx].map((receiptsOutcome) => receiptsOutcome.outcome.logs)
-      const txHashes = receiptsOutcomes[receipt_idx].map((receiptsOutcome) => receiptsOutcome.id)
+      const txHashes = receiptsOutcomes[receipt_idx].map((receiptsOutcome) => receiptsOutcome.outcome.hash)
       const timestamps = receiptsOutcomes[receipt_idx].map((receiptsOutcome) => receiptsOutcome.outcome.timestamp)
+      const signerIds = receiptsOutcomes[receipt_idx].map((receiptsOutcome) => receiptsOutcome.outcome.signerId)
       let logStrings = []
       let txHashesFlat = []
       let timestampsFlat = []
+      let signerIdsFlat = []
       for (let i = 0; i < logsStrings.length; i++) {
         for (let j = 0; j < logsStrings[i].length; j++) {
           const logString = logsStrings[i][j]
@@ -211,6 +217,7 @@ const getNearLogs = async (nearConnection, nearArchival, fromBlock, toBlock) => 
             logStrings.push(logString)
             txHashesFlat.push(txHashes[i])
             timestampsFlat.push(timestamps[i])
+            signerIdsFlat.push(signerIds[i])
           }
         }
       }
@@ -218,6 +225,7 @@ const getNearLogs = async (nearConnection, nearArchival, fromBlock, toBlock) => 
       eventJsonsArray.push(eventJsons)
       txHashesArray.push(txHashesFlat)
       timestampsArray.push(timestampsFlat)
+      signerIdsArray.push(signerIdsFlat)
     }
 
 
@@ -225,7 +233,7 @@ const getNearLogs = async (nearConnection, nearArchival, fromBlock, toBlock) => 
       let eventJsons = eventJsonsArray[i]
       for (let j = 0; j < eventJsons.length; j++) {
         let eventJson = eventJsons[j]
-        const data = await extractDataFromEvent(eventJson, txHashesArray[i][j], timestampsArray[i][j])
+        const data = await extractDataFromEvent(eventJson, txHashesArray[i][j], timestampsArray[i][j], signerIdsArray[i][j])
         if (data.nonce) await saveToDB(data)
       }
     }
@@ -235,7 +243,7 @@ const getNearLogs = async (nearConnection, nearArchival, fromBlock, toBlock) => 
 }
 
 const watchNearLogs = async (nearConnection, nearArchival, fromBlock, toBlock) => {
-  await getNearLogs(nearConnection, nearArchival, fromBlock, toBlock)
+  await retry(getNearLogs, nearConnection, nearArchival, fromBlock, toBlock)
   await sleep(1000 * 3)
 
   const latestBlockHeight = await getLatestBlockHeight(nearConnection)
@@ -263,5 +271,3 @@ const watchNear = async (network) => {
 }
 
 module.exports = { watchNear, syncNear }
-
-// TODO: retry on fail

@@ -4,13 +4,12 @@ const { watchEth, syncEth } = require("./ethLogs")
 const watch = async () => {
   const nearNetwork = "testnet"
 
-  await syncEth({ fromBlock: 9551226, toBlock: 9551226 }, { fromBlock: 9551922, toBlock: 9552213 })
-  await syncNear(nearNetwork, { fromBlock: 135335211, toBlock: 135349425 })
+  // TODO: don't sync if already done
+  await syncEth({ fromBlock: 9552038, toBlock: 9552038 }, { fromBlock: 9555811, toBlock: 9555811 })
+  await syncNear(nearNetwork, { fromBlock: 135348864, toBlock: 135348864 }, { fromBlock: 135386914, toBlock: 135386914 })
 
   await watchEth()
   await watchNear(nearNetwork)
-
-  // setInterval(watchLogs, 2000 * 60);
 }
 
 
