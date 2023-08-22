@@ -1,7 +1,10 @@
 const { ethers } = require("ethers");
 const { Action } = require('@prisma/client')
 
-const CONTRACT_ADDRESS = "0xCF45a233FB21a77e67A0FC5d3E3987fa9cB59e83"
+const CONTRACT_ADDRESS = {
+  "testnet": "0xCF45a233FB21a77e67A0FC5d3E3987fa9cB59e83",
+  "mainnet": "0x36E3d7a3Fa4D8B87151A864F2e2C47429541e170"
+}
 
 const RPC = {
   "testnet": {

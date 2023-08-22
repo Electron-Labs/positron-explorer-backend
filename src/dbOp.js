@@ -1,5 +1,9 @@
-const { PrismaClient, Action } = require('@prisma/client')
-const prisma = new PrismaClient()
+const { Action } = require('@prisma/client')
+const { getPrisma } = require('./watcher/utils/utils')
+const args = require('yargs').argv;
+const network = args.network
+
+const prisma = getPrisma(network)
 
 const showAllData = async () => {
   const data = await prisma.eth_near.findMany({
@@ -56,11 +60,9 @@ const transaction = async (params) => {
 }
 
 async function main() {
-  if (process.argv[2]) {
-    if (process.argv[2] == "--showAll") await showAllData()
-    else if (process.argv[2] == "--delete") await deleteAllData()
-    else if (process.argv[2] == "--custom") await runCustomQuery()
-  }
+  if (args.showAll) await showAllData()
+  else if (args.delete) await deleteAllData()
+  else if (args.custom) await runCustomQuery()
 }
 
 if (require.main == module) {

@@ -1,10 +1,12 @@
 const nearAPI = require('near-api-js');
-const { sleep, getEmptyData, retry } = require("./utils/utils")
+const { sleep, getEmptyData, retry, getPrisma } = require("./utils/utils")
 const { CONTRACT_ID, EVENT_JSON_KEY, currentCredentialsPath, createNearConnection } = require("./utils/nearUtils")
-const { PrismaClient, Action, Status } = require('@prisma/client')
-const prisma = new PrismaClient()
+const { Action, Status } = require('@prisma/client')
 
-const network = process.argv[2].slice(2)
+const args = require('yargs').argv;
+const network = args.network
+const contractId = CONTRACT_ID[network]
+const prisma = getPrisma(network)
 
 async function getBlock(near, nearArchival, height) {
   let block;
@@ -18,7 +20,8 @@ async function getBlock(near, nearArchival, height) {
         blockId: height
       })
     } catch (e2) {
-      // console.log("Error in nearArchival `getBlock`", e2)
+      if (e2.message.toLowerCase().includes("db not found")) return block
+      throw e2
     }
   }
   return block;
@@ -53,11 +56,9 @@ async function getTxData(near, nearArchival, txHash, accountId) {
 
 const getReceiptsOutcome = async (nearConnection, nearArchival, blockHeight) => {
   var logs = []
-  // TODO: retry?
-  let block = await getBlock(nearConnection, nearArchival, blockHeight);
+  let block = await retry(getBlock, nearConnection, nearArchival, blockHeight);
   if (block) {
     const timestamp = block.header.timestamp_nanosec / 10 ** 9
-    // try {
     let chunks = block.chunks.filter((chunk) => chunk.height_included == block.header.height);
     if (chunks.length == 0) return logs
 
@@ -68,14 +69,14 @@ const getReceiptsOutcome = async (nearConnection, nearArchival, blockHeight) => 
     let chunkDetails = await Promise.all(chunkDetailsPromises)
 
     let transactions = chunkDetails.flatMap((chunkDetail) => (chunkDetail.transactions || []).filter((transaction) => {
-      if (transaction.receiver_id == CONTRACT_ID) return true;
+      if (transaction.receiver_id == contractId) return true;
       return false;
     }));
     if (transactions.length == 0) return logs
 
     let txDataPromises = []
     transactions.map((transaction) => {
-      txDataPromises.push(retry(getTxData, nearConnection, nearArchival, transaction.hash, CONTRACT_ID))
+      txDataPromises.push(retry(getTxData, nearConnection, nearArchival, transaction.hash, contractId))
     })
     const txDataResult = await Promise.all(txDataPromises)
 
@@ -87,11 +88,6 @@ const getReceiptsOutcome = async (nearConnection, nearArchival, blockHeight) => 
     })
 
     return logs
-    // } catch (err) {
-    //   console.log("> Error in `getReceiptsOutcome`")
-    //   console.log(err)
-    //   return logs
-    // }
   }
   return logs
 }
@@ -103,73 +99,81 @@ const getLatestBlockHeight = async (nearConnection) => {
 
 const saveToDB = async (data) => {
   console.log('saving data from near...')
-  const record = await prisma.eth_near.findUnique({
-    where: {
-      nonce_action: {
-        nonce: data.nonce,
-        action: data.action
-      }
-    }
-  });
-  let savedData
-  if (!record) {
-    data.status = Status.Pending
-    savedData = await prisma.eth_near.create({ data: data })
-    console.log('near created')
-  }
-  else {
-    // don't update if a complete record already exists
-    if (!Object.values(record).includes(null)) return
-
-    const nonce = data.nonce
-    const action = data.action
-    delete data.nonce
-    delete data.action
-    data.status = Status.Completed
-
-    await prisma.eth_near.update({
+  try {
+    const record = await prisma.eth_near.findUnique({
       where: {
         nonce_action: {
-          nonce: nonce,
-          action: action
+          nonce: data.nonce,
+          action: data.action
+        }
+      }
+    });
+    let savedData
+    if (!record) {
+      data.status = Status.Pending
+      savedData = await prisma.eth_near.create({ data: data })
+      console.log('near created')
+    }
+    else {
+      // don't update if a complete record already exists
+      if (!Object.values(record).includes(null)) return
+
+      const nonce = data.nonce
+      const action = data.action
+      delete data.nonce
+      delete data.action
+      data.status = Status.Completed
+
+      await prisma.eth_near.update({
+        where: {
+          nonce_action: {
+            nonce: nonce,
+            action: action
+          },
         },
-      },
-      data: data,
-    })
+        data: data,
+      })
+    }
+    console.log('near updated')
+  } catch (err) {
+    console.log("Error in `saveToDB`")
+    console.log(err)
   }
-  console.log('near updated')
 }
 const extractDataFromEvent = async (eventJson, txHash, timestamp, signerId) => {
-  const datetime = new Date(timestamp * 1000);
-
   const data = getEmptyData()
 
-  if (eventJson.event == "mint") {
-    data.nonce = eventJson.nonce
-    data.receiverAddress = eventJson.recipient.address
-    data.destinationTx = txHash
-    data.amount = eventJson.amount
-    data.destinationTime = datetime
-    data.action = Action.Lock
-  } else if (eventJson.event == "burn") {
-    data.nonce = eventJson.nonce
-    data.receiverAddress = `0x${eventJson.recipient.address}`
-    data.senderAddress = signerId
-    data.sourceTx = txHash
-    data.tokenAddressSource = `0x${eventJson.token.address}`
-    data.amount = eventJson.amount
-    data.sourceTime = datetime
-    data.action = Action.Unlock
+  try {
+    const datetime = new Date(timestamp * 1000);
+
+    if (eventJson.event == "mint") {
+      data.nonce = eventJson.nonce
+      data.receiverAddress = eventJson.recipient.address
+      data.destinationTx = txHash
+      data.amount = eventJson.amount
+      data.destinationTime = datetime
+      data.action = Action.Lock
+    } else if (eventJson.event == "burn") {
+      data.nonce = eventJson.nonce
+      data.receiverAddress = `0x${eventJson.recipient.address}`
+      data.senderAddress = signerId
+      data.sourceTx = txHash
+      data.tokenAddressSource = `0x${eventJson.token.address}`
+      data.amount = eventJson.amount
+      data.sourceTime = datetime
+      data.action = Action.Unlock
+    }
+  } catch (err) {
+    console.log("Error in `extractDataFromEvent`")
+    console.log(err)
   }
 
   return data
 }
 
 const getNearLogs = async (nearConnection, nearArchival, fromBlock, toBlock) => {
-  // TODO: ensure each valid block gets been scanned
   let BATCH_SIZE = 1000
   let size
-  // TODO: check
   let height = fromBlock
   do {
     size = Math.min(BATCH_SIZE, toBlock - height + 1)

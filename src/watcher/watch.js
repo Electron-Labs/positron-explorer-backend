@@ -1,7 +1,8 @@
 const { watchNear, syncNear } = require("./nearLogs")
 const { watchEth, syncEth } = require("./ethLogs")
 
-const network = process.argv[2].slice(2)
+const args = require('yargs').argv;
+const network = args.network
 
 const watch = async () => {
   let ethSyncRanges = []
@@ -11,7 +12,8 @@ const watch = async () => {
     ethSyncRanges = [{ fromBlock: 9555811, toBlock: 9555988 },]
     nearSyncRanges = [{ fromBlock: 135386914, toBlock: 135386914 }, { fromBlock: 135388715, toBlock: 135389716 }]
   } else if (network == "mainnet") {
-    throw new Error('set contract address');
+    ethSyncRanges = [{ fromBlock: 17897304, toBlock: 17897304 },]
+    nearSyncRanges = [{ fromBlock: 98656629, toBlock: 98656629 },]
   }
 
   await syncEth(...ethSyncRanges)

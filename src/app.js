@@ -6,7 +6,8 @@ const body = require('koa-bodyparser');
 const router = require('./router');
 const app = new Koa();
 
-const network = process.argv[2].slice(2)
+const args = require('yargs').argv;
+const network = args.network
 
 app.use(body());
 

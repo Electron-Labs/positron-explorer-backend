@@ -3,7 +3,8 @@
 const Router = require('koa-router');
 const router = new Router();
 const { listTransactionsEndPoint, transactionEndPoint } = require('./');
-const network = process.argv[2].slice(2)
+const args = require('yargs').argv;
+const network = args.network
 
 const noop = require('./watcher/noop');
 

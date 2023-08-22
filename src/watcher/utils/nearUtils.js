@@ -3,7 +3,10 @@ const homedir = require("os").homedir();
 const credentials_dir = ".near-credentials";
 const currentCredentialsPath = require('path').join(homedir, credentials_dir);
 
-const CONTRACT_ID = "zkbridge.admin_electronlabs.testnet"
+const CONTRACT_ID = {
+  "testnet": "zkbridge.admin_electronlabs.testnet",
+  "mainnet": "token_receiver.zkrouter.near"
+}
 const CONTRACT_INIT_BLOCK_HEIGHT = 125211125
 const EVENT_JSON_KEY = "EVENT_JSON";
 

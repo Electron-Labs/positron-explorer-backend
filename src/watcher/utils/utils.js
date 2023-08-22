@@ -1,3 +1,5 @@
+const { PrismaClient } = require('@prisma/client')
+
 BigInt.prototype.toJSON = function () { return this.toString() }
 
 const sleep = (duration) => new Promise((resolve, reject) => setTimeout(resolve, duration));
@@ -32,4 +34,14 @@ async function retry(fn, ...args) {
     throw e;
 }
 
-module.exports = { sleep, getEmptyData, retry }
+const getPrisma = (network) => {
+    return new PrismaClient({
+        datasources: {
+            db: {
+                url: `postgresql://${process.env.DB_USER}:${process.env.DB_PASSWORD}@${process.env.DB_HOST}:${process.env.DB_PORT}/${network}?schema=public`
+            },
+        },
+    })
+}
+
+module.exports = { sleep, getEmptyData, retry, getPrisma }
