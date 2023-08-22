@@ -10,25 +10,23 @@ const {
   UNLOCKED_EVENT_NAME,
   CONTRACT_ADDRESS,
   ABI,
-  eth_subscribe
+  eth_subscribe,
+  RPC
 } = require("./utils/ethUtils")
 
 
 
-network = process.argv[2]
-console.log("network", network)
-
-const RPC_ENDPOINT_WS = process.env.ETH_RPC_ENDPOINT_WS
-const RPC_ENDPOINT_HTTP = process.env.ETH_RPC_ENDPOINT_HTTP
-
-const web3 = new Web3(RPC_ENDPOINT_WS)
+const network = process.argv[2].slice(2)
+const RPC_ENDPOINT_WS = RPC[network]["ws"]
+const RPC_ENDPOINT_HTTP = RPC[network]["http"]
+const web3 = new Web3(RPC_ENDPOINT_HTTP)
 
 const WebSocket = require('ws');
 const ReconnectingWebSocket = require('reconnecting-websocket');
 const RPC_ENDPOINT = RPC_ENDPOINT_WS
 
 
-async function getTransactionReceipt(web3, txHash) {
+async function getTransactionReceipt(txHash) {
   let receipt;
   while (!receipt) {
     try {
@@ -99,7 +97,7 @@ const extractDataFromEvent = async (event, action) => {
 
   if ("returnValues" in event) {
     txHash = event.transactionHash
-    txReceipt = await getTransactionReceipt(web3, txHash)
+    txReceipt = await getTransactionReceipt(txHash)
     decodedLog = web3.eth.abi.decodeLog(EVENT_SIGNATURE[action],
       event.raw.data,
       event.raw.topics.slice(1,)
@@ -110,7 +108,7 @@ const extractDataFromEvent = async (event, action) => {
       event.topics.slice(1,)
     );
     txHash = event.transactionHash
-    txReceipt = await getTransactionReceipt(web3, txHash)
+    txReceipt = await getTransactionReceipt(txHash)
   }
 
   const block = await web3.eth.getBlock(txReceipt.blockHash)
@@ -157,7 +155,7 @@ const processEvent = async (event, action) => {
   }
 }
 
-const syncEthLogs = async (web3, ...ranges) => {
+const syncEthLogs = async (...ranges) => {
   const contract = new web3.eth.Contract(ABI, CONTRACT_ADDRESS)
   for (let i = 0; i < ranges.length; i++) {
     const range = ranges[i]
@@ -202,9 +200,8 @@ const watchEth = async () => {
 }
 
 const syncEth = async (...ranges) => {
-  const web3 = new Web3(RPC_ENDPOINT_HTTP)
   console.log("syn eth...")
-  await syncEthLogs(web3, ...ranges)
+  await syncEthLogs(...ranges)
   console.log("syn eth finished")
 }
 

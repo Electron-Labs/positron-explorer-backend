@@ -4,6 +4,8 @@ const { CONTRACT_ID, EVENT_JSON_KEY, currentCredentialsPath, createNearConnectio
 const { PrismaClient, Action, Status } = require('@prisma/client')
 const prisma = new PrismaClient()
 
+const network = process.argv[2].slice(2)
+
 async function getBlock(near, nearArchival, height) {
   let block;
   try {
@@ -232,9 +234,9 @@ const watchNearLogs = async (nearConnection, nearArchival, fromBlock, toBlock) =
   await watchNearLogs(nearConnection, nearArchival, Math.min(toBlock + 1, latestBlockHeight), latestBlockHeight)
 }
 
-const syncNear = async (network, ...ranges) => {
-  let nearConnection = await createNearConnection(network, `https://rpc.${network}.near.org`, currentCredentialsPath);
-  let nearArchival = await createNearConnection(network, `https://archival-rpc.testnet.near.org`, currentCredentialsPath);
+const syncNear = async (...ranges) => {
+  let nearConnection = await createNearConnection(network, currentCredentialsPath, false);
+  let nearArchival = await createNearConnection(network, currentCredentialsPath, true);
 
   for (let i = 0; i < ranges.length; i++) {
     const range = ranges[i]
@@ -242,9 +244,9 @@ const syncNear = async (network, ...ranges) => {
   }
 }
 
-const watchNear = async (network) => {
-  let nearConnection = await createNearConnection(network, `https://rpc.${network}.near.org`, currentCredentialsPath);
-  let nearArchival = await createNearConnection(network, `https://archival-rpc.testnet.near.org`, currentCredentialsPath);
+const watchNear = async () => {
+  let nearConnection = await createNearConnection(network, currentCredentialsPath, false);
+  let nearArchival = await createNearConnection(network, currentCredentialsPath, true);
 
   const latestBlockHeight = await getLatestBlockHeight(nearConnection)
 

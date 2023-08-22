@@ -1,7 +1,8 @@
 ### Positron Explorer Backend
 
 ### run
-- npm start
+- npm run startTestnet
+- npm run startMainnet
 
 ### db
 - npm run showAll
