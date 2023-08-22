@@ -1,30 +1,8 @@
 const nearAPI = require('near-api-js');
-const { sleep, createNearConnection, getEmptyData } = require("./utils")
+const { sleep, getEmptyData, retry } = require("./utils/utils")
+const { CONTRACT_ID, EVENT_JSON_KEY, currentCredentialsPath, createNearConnection } = require("./utils/nearUtils")
 const { PrismaClient, Action, Status } = require('@prisma/client')
 const prisma = new PrismaClient()
-
-const homedir = require("os").homedir();
-const credentials_dir = ".near-credentials";
-const currentCredentialsPath = require('path').join(homedir, credentials_dir);
-
-const CONTRACT_ID = "zkbridge.admin_electronlabs.testnet"
-const CONTRACT_INIT_BLOCK_HEIGHT = 125211125
-const EVENT_JSON_KEY = "EVENT_JSON";
-
-async function retry(fn, ...args) {
-  let r, e;
-  for (let i = 0; i < 5; i++) {
-    try {
-      r = await fn(...args);
-      return r;
-    } catch (err) {
-      e = err;
-      await sleep(1000);
-    }
-  }
-  throw e;
-}
-
 
 async function getBlock(near, nearArchival, height) {
   let block;

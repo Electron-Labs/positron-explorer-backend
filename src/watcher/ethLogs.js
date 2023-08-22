@@ -1,10 +1,8 @@
 const Web3 = require('web3');
-const { numberToHex, sleep, getEmptyData } = require("./utils")
+const { sleep, getEmptyData } = require("./utils/utils")
 const { PrismaClient, Action, Status } = require('@prisma/client')
 const prisma = new PrismaClient()
 const {
-  RPC_ENDPOINT_WS,
-  RPC_ENDPOINT_HTTP,
   EVENT_SIGNATURE,
   LOCKED_EVENT,
   UNLOCKED_EVENT,
@@ -13,7 +11,15 @@ const {
   CONTRACT_ADDRESS,
   ABI,
   eth_subscribe
-} = require("./ethUtils")
+} = require("./utils/ethUtils")
+
+
+
+network = process.argv[2]
+console.log("network", network)
+
+const RPC_ENDPOINT_WS = process.env.ETH_RPC_ENDPOINT_WS
+const RPC_ENDPOINT_HTTP = process.env.ETH_RPC_ENDPOINT_HTTP
 
 const web3 = new Web3(RPC_ENDPOINT_WS)
 

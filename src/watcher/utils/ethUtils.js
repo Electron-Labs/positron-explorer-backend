@@ -1,8 +1,18 @@
 const { ethers } = require("ethers");
 const { Action } = require('@prisma/client')
 
-const RPC_ENDPOINT_WS = "wss://eth-goerli.g.alchemy.com/v2/bPhT1o8ECrP--YN7FE-dbRH3XxMsgEyr"
-const RPC_ENDPOINT_HTTP = "https://eth-goerli.g.alchemy.com/v2/bPhT1o8ECrP--YN7FE-dbRH3XxMsgEyr"
+const CONTRACT_ADDRESS = "0xCF45a233FB21a77e67A0FC5d3E3987fa9cB59e83"
+
+const RPC = {
+  "testnet": {
+    "http": process.env.ETH_RPC_ENDPOINT_HTTP_TESTNET,
+    "ws": process.env.ETH_RPC_ENDPOINT_WS_TESTNET
+  },
+  "mainnet": {
+    "http": process.env.ETH_RPC_ENDPOINT_HTTP_MAINNET,
+    "ws": process.env.ETH_RPC_ENDPOINT_WS_MAINNET
+  }
+}
 
 const EVENT_SIGNATURE = {
   [Action.Lock]: [
@@ -64,7 +74,6 @@ const UNLOCKED_EVENT = ethers.keccak256(ethers.toUtf8Bytes(
 const LOCKED_EVENT_NAME = "Locked"
 const UNLOCKED_EVENT_NAME = "Unlocked"
 
-const CONTRACT_ADDRESS = "0xCF45a233FB21a77e67A0FC5d3E3987fa9cB59e83"
 
 const CONTRACT_INIT_BLOCK_NUMBER = 8912798
 
@@ -149,8 +158,6 @@ const eth_subscribe = (event, contractAddress) => {
 }
 
 module.exports = {
-  RPC_ENDPOINT_WS,
-  RPC_ENDPOINT_HTTP,
   EVENT_SIGNATURE,
   LOCKED_EVENT,
   UNLOCKED_EVENT,
@@ -159,5 +166,6 @@ module.exports = {
   CONTRACT_ADDRESS,
   CONTRACT_INIT_BLOCK_NUMBER,
   ABI,
-  eth_subscribe
+  eth_subscribe,
+  RPC
 }

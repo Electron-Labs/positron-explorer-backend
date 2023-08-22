@@ -4,8 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "node src/app.js",
-    "startDev": "nodemon src/app.js",
+    "startTestnet": "node src/app.js --testnet",
+    "startMainnet": "node src/app.js --mainnet",
+    "start": "nodemon src/app.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "showAll": "node src/dbOp.js --showAll",
     "deleteAll": "node src/dbOp.js --delete",
@@ -17,13 +18,11 @@
   "dependencies": {
     "@koa/router": "^9.4.0",
     "@prisma/client": "^5.1.1",
-    "bn.js": "^5.2.1",
     "ethers": "^6.7.1",
     "koa": "^2.13.0",
     "koa-bodyparser": "^4.3.0",
     "koa-router": "^9.4.0",
     "near-api-js": "^2.1.4",
-    "number-to-bn": "^1.7.0",
     "reconnecting-websocket": "^4.4.0",
     "web3": "^1.3.0",
     "ws": "^8.13.0"
