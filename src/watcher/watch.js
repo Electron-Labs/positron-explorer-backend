@@ -8,12 +8,10 @@ const watch = async () => {
   let nearSyncRanges = []
 
   if (network == "testnet") {
-    ethSyncRanges = [{ fromBlock: 9552038, toBlock: 9552038 }, { fromBlock: 9555811, toBlock: 9555811 }]
-    nearSyncRanges = [{ fromBlock: 135348864, toBlock: 135348864 }, { fromBlock: 135386914, toBlock: 135386914 }]
+    ethSyncRanges = [{ fromBlock: 9555811, toBlock: 9555988 },]
+    nearSyncRanges = [{ fromBlock: 135386914, toBlock: 135386914 }, { fromBlock: 135388715, toBlock: 135389716 }]
   } else if (network == "mainnet") {
     throw new Error('set contract address');
-  } else {
-    throw new Error('Bad `network` argument!');
   }
 
   await syncEth(...ethSyncRanges)
