@@ -99,73 +99,63 @@ const getLatestBlockHeight = async (nearConnection) => {
 
 const saveToDB = async (data) => {
   console.log('saving data from near...')
-  try {
-    const record = await prisma.eth_near.findUnique({
+  const record = await prisma.eth_near.findUnique({
+    where: {
+      nonce_action: {
+        nonce: data.nonce,
+        action: data.action
+      }
+    }
+  });
+  let savedData
+  if (!record) {
+    data.status = Status.Pending
+    savedData = await prisma.eth_near.create({ data: data })
+    console.log('near created')
+  }
+  else {
+    // don't update if a complete record already exists
+    if (!Object.values(record).includes(null)) return
+
+    const nonce = data.nonce
+    const action = data.action
+    delete data.nonce
+    delete data.action
+    data.status = Status.Completed
+
+    await prisma.eth_near.update({
       where: {
         nonce_action: {
-          nonce: data.nonce,
-          action: data.action
-        }
-      }
-    });
-    let savedData
-    if (!record) {
-      data.status = Status.Pending
-      savedData = await prisma.eth_near.create({ data: data })
-      console.log('near created')
-    }
-    else {
-      // don't update if a complete record already exists
-      if (!Object.values(record).includes(null)) return
-
-      const nonce = data.nonce
-      const action = data.action
-      delete data.nonce
-      delete data.action
-      data.status = Status.Completed
-
-      await prisma.eth_near.update({
-        where: {
-          nonce_action: {
-            nonce: nonce,
-            action: action
-          },
+          nonce: nonce,
+          action: action
         },
-        data: data,
-      })
-    }
-    console.log('near updated')
-  } catch (err) {
-    console.log("Error in `saveToDB`")
-    console.log(err)
+      },
+      data: data,
+    })
   }
+  console.log('near updated')
 }
-const extractDataFromEvent = async (eventJson, txHash, timestamp, signerId) => {
+const extractDataFromEvent = (eventJson, txHash, timestamp, signerId) => {
   const data = getEmptyData()
 
-  try {
-    const datetime = new Date(timestamp * 1000);
+  const datetime = new Date(timestamp * 1000);
 
-    if (eventJson.event == "mint") {
-      data.nonce = eventJson.nonce
-      data.receiverAddress = eventJson.recipient.address
-      data.destinationTx = txHash
-      data.amount = eventJson.amount
-      data.destinationTime = datetime
-      data.action = Action.Lock
-    } else if (eventJson.event == "burn") {
-      data.nonce = eventJson.nonce
-      data.receiverAddress = `0x${eventJson.recipient.address}`
-      data.senderAddress = signerId
-      data.sourceTx = txHash
-      data.tokenAddressSource = `0x${eventJson.token.address}`
-      data.amount = eventJson.amount
-      data.sourceTime = datetime
-      data.action = Action.Unlock
-    }
-  } catch (err) {
-    console.log("Error in `extractDataFromEvent`")
-    console.log(err)
+  if (eventJson.event == "mint") {
+    data.nonce = eventJson.nonce
+    data.receiverAddress = eventJson.recipient.address
+    data.destinationTx = txHash
+    data.amount = eventJson.amount
+    data.destinationTime = datetime
+    data.action = Action.Lock
+  } else if (eventJson.event == "burn") {
+    data.nonce = eventJson.nonce
+    data.receiverAddress = `0x${eventJson.recipient.address}`
+    data.senderAddress = signerId
+    data.sourceTx = txHash
+    data.tokenAddressSource = `0x${eventJson.token.address}`
+    data.amount = eventJson.amount
+    data.sourceTime = datetime
+    data.action = Action.Unlock
   }
 
   return data
@@ -221,7 +211,7 @@ const getNearLogs = async (nearConnection, nearArchival, fromBlock, toBlock) => 
       let eventJsons = eventJsonsArray[i]
       for (let j = 0; j < eventJsons.length; j++) {
         let eventJson = eventJsons[j]
-        const data = await extractDataFromEvent(eventJson, txHashesArray[i][j], timestampsArray[i][j], signerIdsArray[i][j])
+        const data = extractDataFromEvent(eventJson, txHashesArray[i][j], timestampsArray[i][j], signerIdsArray[i][j])
         if (data.nonce) await saveToDB(data)
       }
     }
@@ -231,20 +221,36 @@ const getNearLogs = async (nearConnection, nearArchival, fromBlock, toBlock) => 
 }
 
 const watchNearLogs = async (nearConnection, nearArchival, fromBlock, toBlock) => {
-  await retry(getNearLogs, nearConnection, nearArchival, fromBlock, toBlock)
-  await sleep(1000 * 3)
+  try {
+    await retry(getNearLogs, nearConnection, nearArchival, fromBlock, toBlock)
+    await sleep(1000 * 5)
+  } catch (err) {
+    console.log("> Error in `watchNearLogs`")
+    console.log(err)
+    console.log("Trying again in 2 minutes...")
+    await sleep(1000 * 120)
+    await watchNearLogs(nearConnection, nearArchival, fromBlock, toBlock)
+  }
 
   const latestBlockHeight = await getLatestBlockHeight(nearConnection)
   await watchNearLogs(nearConnection, nearArchival, Math.min(toBlock + 1, latestBlockHeight), latestBlockHeight)
 }
 
 const syncNear = async (...ranges) => {
-  let nearConnection = await createNearConnection(network, currentCredentialsPath, false);
-  let nearArchival = await createNearConnection(network, currentCredentialsPath, true);
+  try {
+    let nearConnection = await createNearConnection(network, currentCredentialsPath, false);
+    let nearArchival = await createNearConnection(network, currentCredentialsPath, true);
 
-  for (let i = 0; i < ranges.length; i++) {
-    const range = ranges[i]
-    await getNearLogs(nearConnection, nearArchival, range.fromBlock, range.toBlock)
+    for (let i = 0; i < ranges.length; i++) {
+      const range = ranges[i]
+      await retry(getNearLogs, nearConnection, nearArchival, range.fromBlock, range.toBlock)
+    }
+  } catch (err) {
+    console.log("> Error in `syncNear`")
+    console.log(err)
+    console.log("Trying again in 2 minutes...")
+    await sleep(1000 * 120)
+    await syncNear(...ranges)
   }
 }
 
