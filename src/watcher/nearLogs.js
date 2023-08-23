@@ -1,5 +1,5 @@
 const nearAPI = require('near-api-js');
-const { sleep, getEmptyData, retry, getPrisma } = require("./utils/utils")
+const { sleep, getEmptyData, retry, getPrisma, getLogger } = require("./utils/utils")
 const { CONTRACT_ID, EVENT_JSON_KEY, currentCredentialsPath, createNearConnection } = require("./utils/nearUtils")
 const { Action, Status } = require('@prisma/client')
 
@@ -7,6 +7,7 @@ const args = require('yargs').argv;
 const network = args.network
 const contractId = CONTRACT_ID[network]
 const prisma = getPrisma(network)
+const logger = getLogger(network)
 
 async function getBlock(near, nearArchival, height) {
   let block;
@@ -224,14 +225,14 @@ const watchNearLogs = async (nearConnection, nearArchival, fromBlock, toBlock) =
     await retry(getNearLogs, nearConnection, nearArchival, fromBlock, toBlock)
     await sleep(1000 * 5)
   } catch (err) {
-    console.log("> Error in `watchNearLogs`")
-    console.log(err)
-    console.log("Trying again in 2 minutes...")
-    await sleep(1000 * 120)
+    logger.warn(`> Error in watchNearLogs: ${err}`)
+    console.log(`> Error in watchNearLogs: ${err}`)
+    console.log("Trying again in 60 seconds...")
+    await sleep(1000 * 60)
     await watchNearLogs(nearConnection, nearArchival, fromBlock, toBlock)
   }
 
-  const latestBlockHeight = await getLatestBlockHeight(nearConnection)
+  const latestBlockHeight = await retry(getLatestBlockHeight, nearConnection)
   await watchNearLogs(nearConnection, nearArchival, Math.min(toBlock + 1, latestBlockHeight), latestBlockHeight)
 }
 
@@ -245,10 +246,10 @@ const syncNear = async (...ranges) => {
       await retry(getNearLogs, nearConnection, nearArchival, range.fromBlock, range.toBlock)
     }
   } catch (err) {
-    console.log("> Error in `syncNear`")
-    console.log(err)
-    console.log("Trying again in 2 minutes...")
-    await sleep(1000 * 120)
+    logger.warn(`> Error in syncNear: ${err}`)
+    console.log(`> Error in syncNear: ${err}`)
+    console.log("Trying again in 60 seconds...")
+    await sleep(1000 * 60)
     await syncNear(...ranges)
   }
 }
@@ -257,7 +258,7 @@ const watchNear = async () => {
   let nearConnection = await createNearConnection(network, currentCredentialsPath, false);
   let nearArchival = await createNearConnection(network, currentCredentialsPath, true);
 
-  const latestBlockHeight = await getLatestBlockHeight(nearConnection)
+  const latestBlockHeight = await retry(getLatestBlockHeight, nearConnection)
 
   console.log("watching near logs...")
   await watchNearLogs(nearConnection, nearArchival, latestBlockHeight, latestBlockHeight)

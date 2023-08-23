@@ -1,4 +1,6 @@
 const { PrismaClient } = require('@prisma/client')
+const winston = require('winston');
+const DailyRotateFile = require('winston-daily-rotate-file');
 
 BigInt.prototype.toJSON = function () { return this.toString() }
 
@@ -50,4 +52,26 @@ const getRangesFromNumbers = (...numbers) => {
     return ranges
 }
 
-module.exports = { sleep, getEmptyData, retry, getPrisma, getRangesFromNumbers }
+const myFormat = winston.format.printf(({ level, message, timestamp }) => {
+    return `${timestamp} ${level.toUpperCase()}: ${message}`;
+});
+
+const getLogger = (network) => {
+    const logger = winston.createLogger({
+        format: winston.format.combine(
+            winston.format.timestamp(),
+            myFormat
+        ),
+        transports: [
+            new DailyRotateFile({
+                dirname: `logs/eth_near_${network}_logs`,
+                maxSize: '10k',
+                maxFiles: '4d',
+            }),
+        ],
+        level: "info"
+    });
+    return logger
+}
+
+module.exports = { sleep, getEmptyData, retry, getPrisma, getRangesFromNumbers, getLogger }

@@ -1,5 +1,5 @@
 const Web3 = require('web3');
-const { sleep, getEmptyData, getPrisma } = require("./utils/utils")
+const { sleep, getEmptyData, getPrisma, getLogger, retry } = require("./utils/utils")
 const { Action, Status } = require('@prisma/client')
 const ReconnectingWebSocket = require('reconnecting-websocket');
 const {
@@ -15,7 +15,6 @@ const {
 } = require("./utils/ethUtils")
 const WebSocket = require('ws');
 
-
 const args = require('yargs').argv;
 const network = args.network
 const contractAddress = CONTRACT_ADDRESS[network]
@@ -23,21 +22,7 @@ const RPC_ENDPOINT_WS = RPC[network]["ws"]
 const RPC_ENDPOINT_HTTP = RPC[network]["http"]
 const web3 = new Web3(RPC_ENDPOINT_HTTP)
 const prisma = getPrisma(network)
-
-
-async function getTransactionReceipt(txHash) {
-  let receipt;
-  while (!receipt) {
-    try {
-      receipt = await web3.eth.getTransactionReceipt(txHash);
-    } catch (err) {
-      console.log(`Error fetching receipt ${err}`);
-      receipt = null;
-      await sleep(1000);
-    }
-  }
-  return receipt;
-}
+const logger = getLogger(network)
 
 const saveToDB = async (dataArray) => {
   const newRecords = []
@@ -95,7 +80,7 @@ const extractDataFromEvent = async (event, action) => {
 
   if ("returnValues" in event) {
     txHash = event.transactionHash
-    txReceipt = await getTransactionReceipt(txHash)
+    txReceipt = await web3.eth.getTransactionReceipt(txHash)
     decodedLog = web3.eth.abi.decodeLog(EVENT_SIGNATURE[action],
       event.raw.data,
       event.raw.topics.slice(1,)
@@ -106,7 +91,7 @@ const extractDataFromEvent = async (event, action) => {
       event.topics.slice(1,)
     );
     txHash = event.transactionHash
-    txReceipt = await getTransactionReceipt(txHash)
+    txReceipt = await web3.eth.getTransactionReceipt(txHash)
   }
 
   const block = await web3.eth.getBlock(txReceipt.blockHash)
@@ -141,9 +126,9 @@ const processEvent = async (event, action) => {
   if (!(typeof result == "string")) {
     let extractDataPromises = []
     if ((result instanceof Array) && (result.length != 0)) { // either array of past logs
-      result.map((logEvent) => extractDataPromises.push(extractDataFromEvent(logEvent, action)))
+      result.map((logEvent) => extractDataPromises.push(retry(extractDataFromEvent, logEvent, action)))
     } else if (result instanceof Object) { // single txn
-      extractDataPromises.push(extractDataFromEvent(result, action))
+      extractDataPromises.push(retry(extractDataFromEvent, result, action))
     } else {
       console.log(`Websocket error event ${JSON.stringify(data)}`);
     }
@@ -161,8 +146,8 @@ const syncEthLogs = async (...ranges) => {
     const unlockedEvents = await contract.getPastEvents(UNLOCKED_EVENT_NAME, { fromBlock: range.fromBlock, toBlock: range.toBlock })
 
     let extractDataPromises = []
-    lockedEvents.map((event) => extractDataPromises.push(extractDataFromEvent(event, Action.Lock)))
-    unlockedEvents.map((event) => extractDataPromises.push(extractDataFromEvent(event, Action.Unlock)))
+    lockedEvents.map((event) => extractDataPromises.push(retry(extractDataFromEvent, event, Action.Lock)))
+    unlockedEvents.map((event) => extractDataPromises.push(retry(extractDataFromEvent, event, Action.Unlock)))
 
     const dataArray = await Promise.all(extractDataPromises)
 
@@ -172,7 +157,6 @@ const syncEthLogs = async (...ranges) => {
 
 const watchEthLogs = async (client) => {
   client['lock'].addEventListener("open", async () => {
-    // TODO: add try/catch
     client['lock'].send(JSON.stringify(eth_subscribe(LOCKED_EVENT, contractAddress)));
   });
 
@@ -184,7 +168,8 @@ const watchEthLogs = async (client) => {
     try {
       await processEvent(event, Action.Lock)
     } catch (err) {
-      console.log("> Error in `watchEthLogs::lock::message`")
+      logger.warn(`> Error in watchEthLogs::lock::message ${err}`)
+      console.log(`> Error in watchEthLogs::lock::message ${err}`)
       console.log("Trying again...")
       await sleep(1000 * 5)
       await processEvent(event, Action.Lock)
@@ -194,7 +179,8 @@ const watchEthLogs = async (client) => {
     try {
       await processEvent(event, Action.Unlock)
     } catch (err) {
-      console.log("> Error in `watchEthLogs::unlock::message`")
+      logger.warn(`> Error in watchEthLogs::unlock::message ${err}`)
+      console.log(`> Error in watchEthLogs::unlock::message ${err}`)
       console.log("Trying again...")
       await sleep(1000 * 5)
       await processEvent(event, Action.Unlock)
@@ -215,10 +201,10 @@ const watchEth = async () => {
     console.log("wathing eth...")
     await watchEthLogs(client)
   } catch (err) {
-    console.log("> Error in  `watchEth")
-    console.log(err)
-    console.log("Trying again in 30 seconds...")
-    await sleep(1000 * 30)
+    console.log(`> Error in watchEth ${err}`)
+    logger.warn(`> Error in watchEth ${err}`)
+    console.log("Trying again in 60 seconds...")
+    await sleep(1000 * 60)
     await watchEth()
   }
 }
@@ -228,10 +214,10 @@ const syncEth = async (...ranges) => {
   try {
     await syncEthLogs(...ranges)
   } catch (err) {
-    console.log("> Error in `syncEth`")
-    console.log(err)
-    console.log("Trying again in 2 minutes...")
-    await sleep(1000 * 120)
+    logger.warn(`> Error in syncEth ${err}`)
+    console.log(`> Error in syncEth ${err}`)
+    console.log("Trying again in 60 seconds...")
+    await sleep(1000 * 60)
     await syncEth(...ranges)
   }
   console.log("syn eth finished")
