@@ -44,4 +44,10 @@ const getPrisma = (network) => {
     })
 }
 
-module.exports = { sleep, getEmptyData, retry, getPrisma }
+const getRangesFromNumbers = (...numbers) => {
+    ranges = []
+    numbers.forEach((number) => ranges.push({ fromBlock: number, toBlock: number }))
+    return ranges
+}
+
+module.exports = { sleep, getEmptyData, retry, getPrisma, getRangesFromNumbers }

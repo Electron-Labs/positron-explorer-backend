@@ -1,4 +1,10 @@
-### Positron Explorer Backend
+# Positron Explorer Backend
+
+### Setup
+- See `.env.example` for the env file needed
+- Set `ranges` and `numbers` fields in `syncConfig.json` file. Leave as empty array if not needed
+- Both `fromBlock` and `toBlock` are inclusive in range
+- All numbers must be integers, not strings
 
 ### run
 - npm start -- --network mainnet
@@ -6,13 +12,12 @@
 
 ### db
 - npm run showAll -- --network mainnet
-- npm run deleteAll --network testnet
-
 
 ### example queries
 - http://3.134.195.221/mainnet/
 - http://3.134.195.221/testnet/list_transactions/?per_page=5&page_no=0
+- http://3.134.195.221/mainnet/transaction/?nonce=10&source=eth
 
-### port forwarding
-- ssh -L 8080:localhost:5001 ubuntu@3.17.61.72
-- http://localhost:8080/list_transactions/0/3
+### Migrate db
+- Set apropriate `DATABASE_URL` in the .env file
+- run `npx prisma migrate dev`

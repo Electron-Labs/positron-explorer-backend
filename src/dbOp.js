@@ -12,10 +12,10 @@ const showAllData = async () => {
 }
 
 const deleteAllData = async () => {
-  // console.log("disabled!")
-  console.log("deletetin all data...")
-  const deleteData = await prisma.eth_near.deleteMany({})
-  console.log("deleteData", deleteData)
+  console.log("disabled!")
+  // console.log("deletetin all data...")
+  // const deleteData = await prisma.eth_near.deleteMany({})
+  // console.log("deleteData", deleteData)
 }
 
 const runCustomQuery = async () => {
@@ -24,7 +24,10 @@ const runCustomQuery = async () => {
 }
 
 const listTransactions = async (params) => {
-  if ((params.per_page < 0) && (params.page_no < 0)) {
+  const perPage = parseInt(params.per_page)
+  const pageNo = parseInt(params.page_no)
+
+  if ((perPage < 0) && (pageNo < 0)) {
     throw new Error('Bad input argument!');
   }
   let data = await prisma.eth_near.findMany({
@@ -33,8 +36,8 @@ const listTransactions = async (params) => {
     }
   })
   data = data.slice(
-    Math.min(data.length, params.per_page * params.page_no),
-    Math.min(data.length, params.per_page * (params.page_no + 1))
+    Math.min(data.length, perPage * pageNo),
+    Math.min(data.length, perPage * (pageNo + 1))
   )
   return data
 }

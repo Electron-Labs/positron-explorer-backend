@@ -172,6 +172,7 @@ const syncEthLogs = async (...ranges) => {
 
 const watchEthLogs = async (client) => {
   client['lock'].addEventListener("open", async () => {
+    // TODO: add try/catch
     client['lock'].send(JSON.stringify(eth_subscribe(LOCKED_EVENT, contractAddress)));
   });
 
@@ -179,21 +180,47 @@ const watchEthLogs = async (client) => {
     client['unlock'].send(JSON.stringify(eth_subscribe(UNLOCKED_EVENT, contractAddress)));
   });
 
-  client['lock'].addEventListener("message", async (event) => await processEvent(event, Action.Lock));
-  client['unlock'].addEventListener("message", async (event) => await processEvent(event, Action.Unlock));
+  client['lock'].addEventListener("message", async (event) => {
+    try {
+      await processEvent(event, Action.Lock)
+    } catch (err) {
+      console.log("> Error in `watchEthLogs::lock::message`")
+      console.log("Trying again...")
+      await sleep(1000 * 5)
+      await processEvent(event, Action.Lock)
+    }
+  });
+  client['unlock'].addEventListener("message", async (event) => {
+    try {
+      await processEvent(event, Action.Unlock)
+    } catch (err) {
+      console.log("> Error in `watchEthLogs::unlock::message`")
+      console.log("Trying again...")
+      await sleep(1000 * 5)
+      await processEvent(event, Action.Unlock)
+    }
+  });
 
   client['lock'].addEventListener("close", async () => console.log(`past lock logs [websocket] Disconnected from ${RPC_ENDPOINT_WS}`));
   client['unlock'].addEventListener("close", async () => console.log(`past unlock logs [websocket] Disconnected from ${RPC_ENDPOINT_WS}`));
 }
 
 const watchEth = async () => {
-  let client = {
-    lock: new ReconnectingWebSocket(RPC_ENDPOINT_WS, [], { WebSocket: WebSocket }),
-    unlock: new ReconnectingWebSocket(RPC_ENDPOINT_WS, [], { WebSocket: WebSocket })
-  }
+  try {
+    let client = {
+      lock: new ReconnectingWebSocket(RPC_ENDPOINT_WS, [], { WebSocket: WebSocket }),
+      unlock: new ReconnectingWebSocket(RPC_ENDPOINT_WS, [], { WebSocket: WebSocket })
+    }
 
-  console.log("wathing eth...")
-  await watchEthLogs(client)
+    console.log("wathing eth...")
+    await watchEthLogs(client)
+  } catch (err) {
+    console.log("> Error in  `watchEth")
+    console.log(err)
+    console.log("Trying again in 30 seconds...")
+    await sleep(1000 * 30)
+    await watchEth()
+  }
 }
 
 const syncEth = async (...ranges) => {

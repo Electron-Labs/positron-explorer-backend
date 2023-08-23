@@ -1,7 +1,7 @@
 const { watchNear, syncNear } = require("./nearLogs")
 const { watchEth, syncEth } = require("./ethLogs");
-const { sleep } = require("./utils/utils");
-
+const { sleep, getRangesFromNumbers } = require("./utils/utils");
+const syncConfig = require("../syncConfig.json")
 const args = require('yargs').argv;
 const network = args.network
 
@@ -10,13 +10,11 @@ const watch = async () => {
     let ethSyncRanges = []
     let nearSyncRanges = []
 
-    if (network == "testnet") {
-      ethSyncRanges = [{ fromBlock: 9555811, toBlock: 9555988 },]
-      nearSyncRanges = [{ fromBlock: 135386914, toBlock: 135386914 }, { fromBlock: 135388715, toBlock: 135389716 }]
-    } else if (network == "mainnet") {
-      ethSyncRanges = [{ fromBlock: 17897304, toBlock: 17897304 },]
-      nearSyncRanges = [{ fromBlock: 98656629, toBlock: 98656629 },]
-    }
+    ethSyncRanges = [...ethSyncRanges, ...getRangesFromNumbers(...syncConfig[network]["eth"]["numbers"])]
+    ethSyncRanges = [...ethSyncRanges, ...syncConfig[network]["eth"]["ranges"]]
+
+    nearSyncRanges = [...nearSyncRanges, ...getRangesFromNumbers(...syncConfig[network]["near"]["numbers"])]
+    nearSyncRanges = [...nearSyncRanges, ...syncConfig[network]["near"]["ranges"]]
 
     await syncEth(...ethSyncRanges)
     await syncNear(...nearSyncRanges)

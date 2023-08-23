@@ -98,7 +98,6 @@ const getLatestBlockHeight = async (nearConnection) => {
 }
 
 const saveToDB = async (data) => {
-  console.log('saving data from near...')
   const record = await prisma.eth_near.findUnique({
     where: {
       nonce_action: {
