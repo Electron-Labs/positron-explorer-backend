@@ -15,7 +15,8 @@ const getEmptyData = () => {
         receiverAddress: undefined,
         sourceTx: undefined,
         destinationTx: undefined,
-        amount: undefined,
+        sourceAmount: undefined,
+        destinationAmount: undefined,
         action: undefined,
         tokenAddressSource: undefined,
         status: undefined

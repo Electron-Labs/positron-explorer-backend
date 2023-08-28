@@ -22,17 +22,18 @@ enum Status {
 }
 
 model eth_near {
-  nonce               BigInt
-  sourceTime          DateTime?
-  destinationTime     DateTime?
-  senderAddress       String?   @db.VarChar(64)
-  sourceTx            String?   @db.VarChar(66)
-  receiverAddress     String?   @db.VarChar(64)
-  destinationTx       String?   @db.VarChar(66)
-  amount              BigInt
-  action              Action
-  tokenAddressSource  String?    @db.VarChar(64)
-  status Status
+  nonce                   BigInt
+  sourceTime              DateTime?
+  destinationTime         DateTime?
+  senderAddress           String?   @db.VarChar(66)
+  sourceTx                String?   @db.VarChar(66)
+  receiverAddress         String?   @db.VarChar(66)
+  destinationTx           String?   @db.VarChar(66)
+  sourceAmount            BigInt?
+  destinationAmount       BigInt?
+  action                  Action
+  tokenAddressSource      String?   @db.VarChar(66)
+  status                  Status
 
   @@unique([nonce, action])
 }

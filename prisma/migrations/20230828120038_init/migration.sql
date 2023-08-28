@@ -7,15 +7,17 @@ CREATE TYPE "Status" AS ENUM ('Completed', 'Pending', 'Failed');
 -- CreateTable
 CREATE TABLE "eth_near" (
     "nonce" BIGINT NOT NULL,
-    "originTime" TIMESTAMP(3),
+    "sourceTime" TIMESTAMP(3),
     "destinationTime" TIMESTAMP(3),
-    "senderAddress" VARCHAR(64),
+    "senderAddress" VARCHAR(66),
     "sourceTx" VARCHAR(66),
-    "receiverAddress" VARCHAR(64),
+    "receiverAddress" VARCHAR(66),
     "destinationTx" VARCHAR(66),
-    "amount" BIGINT NOT NULL,
+    "sourceAmount" BIGINT,
+    "destinationAmount" BIGINT,
     "action" "Action" NOT NULL,
-    "tokenAddressOrigin" VARCHAR(64) NOT NULL,
+    "tokenAddressSource" VARCHAR(66),
+    "tokenAddressDestination" VARCHAR(66),
     "status" "Status" NOT NULL
 );
 

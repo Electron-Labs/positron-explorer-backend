@@ -12,10 +12,10 @@ const showAllData = async () => {
 }
 
 const deleteAllData = async () => {
-  console.log("disabled!")
-  // console.log("deletetin all data...")
-  // const deleteData = await prisma.eth_near.deleteMany({})
-  // console.log("deleteData", deleteData)
+  // console.log("disabled!")
+  console.log("deleteting all data...")
+  const deleteData = await prisma.eth_near.deleteMany({})
+  console.log("deleteData", deleteData)
 }
 
 const runCustomQuery = async () => {

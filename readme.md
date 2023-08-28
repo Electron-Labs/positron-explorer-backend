@@ -14,9 +14,9 @@
 - npm run showAll -- --network mainnet
 
 ### example queries
-- http://3.134.195.221/mainnet/
-- http://3.134.195.221/testnet/list_transactions/?per_page=5&page_no=0
-- http://3.134.195.221/mainnet/transaction/?nonce=10&source=eth
+- https://explorer.electronlabs.org/
+- https://explorer.electronlabs.org/transaction/?nonce=33&source=eth
+- https://testnet.explorer.electronlabs.org/list_transactions/?per_page=5&page_no=0
 
 ### Migrate db
 - Set apropriate `DATABASE_URL` in the .env file

@@ -50,7 +50,6 @@ const saveToDB = async (dataArray) => {
       const action = data.action
       delete data.nonce
       delete data.action
-      data.status = Status.Completed
 
       const updated = await prisma.eth_near.update({
         where: {
@@ -62,6 +61,20 @@ const saveToDB = async (dataArray) => {
         data: data,
       })
       console.log("eth updated")
+
+      // TODO: check and commit properly
+      delete updated.status
+      if (!Object.values(updated).includes(null)) {
+        await prisma.eth_near.update({
+          where: {
+            nonce_action: {
+              nonce: nonce,
+              action: action
+            },
+          },
+          data: { status: Status.Completed },
+        })
+      }
     }
   }
 
@@ -102,7 +115,7 @@ const extractDataFromEvent = async (event, action) => {
     data.senderAddress = txReceipt.from
     data.sourceTx = txHash
     data.receiverAddress = decodedLog.accountId
-    data.amount = decodedLog.amount
+    data.sourceAmount = decodedLog.amount
     data.tokenAddressSource = decodedLog.token
     data.sourceTime = datetime
   }
@@ -110,7 +123,7 @@ const extractDataFromEvent = async (event, action) => {
     data.nonce = decodedLog.unlockNonce
     data.receiverAddress = decodedLog.recipient
     data.destinationTx = txHash
-    data.amount = decodedLog.amount
+    data.destinationAmount = decodedLog.amount
     data.destinationTime = datetime
   }
 

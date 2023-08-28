@@ -107,10 +107,9 @@ const saveToDB = async (data) => {
       }
     }
   });
-  let savedData
   if (!record) {
     data.status = Status.Pending
-    savedData = await prisma.eth_near.create({ data: data })
+    const savedData = await prisma.eth_near.create({ data: data })
     console.log('near created')
   }
   else {
@@ -121,9 +120,8 @@ const saveToDB = async (data) => {
     const action = data.action
     delete data.nonce
     delete data.action
-    data.status = Status.Completed
 
-    await prisma.eth_near.update({
+    const updated = await prisma.eth_near.update({
       where: {
         nonce_action: {
           nonce: nonce,
@@ -132,9 +130,23 @@ const saveToDB = async (data) => {
       },
       data: data,
     })
+    console.log('near updated')
+
+    delete updated.status
+    if (!Object.values(updated).includes(null)) {
+      await prisma.eth_near.update({
+        where: {
+          nonce_action: {
+            nonce: nonce,
+            action: action
+          },
+        },
+        data: { status: Status.Completed },
+      })
+    }
   }
-  console.log('near updated')
 }
+
 const extractDataFromEvent = (eventJson, txHash, timestamp, signerId) => {
   const data = getEmptyData()
 
@@ -144,7 +156,7 @@ const extractDataFromEvent = (eventJson, txHash, timestamp, signerId) => {
     data.nonce = eventJson.nonce
     data.receiverAddress = eventJson.recipient.address
     data.destinationTx = txHash
-    data.amount = eventJson.amount
+    data.destinationAmount = eventJson.amount
     data.destinationTime = datetime
     data.action = Action.Lock
   } else if (eventJson.event == "burn") {
@@ -153,7 +165,7 @@ const extractDataFromEvent = (eventJson, txHash, timestamp, signerId) => {
     data.senderAddress = signerId
     data.sourceTx = txHash
     data.tokenAddressSource = `0x${eventJson.token.address}`
-    data.amount = eventJson.amount
+    data.sourceAmount = eventJson.amount
     data.sourceTime = datetime
     data.action = Action.Unlock
   }

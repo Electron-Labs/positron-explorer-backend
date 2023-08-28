@@ -8,9 +8,9 @@ const network = args.network
 
 const noop = require('./watcher/noop');
 
-router.get(`/${network}`, noop);
-router.get(`/${network}/list_transactions/`, listTransactionsEndPoint)
-router.get(`/${network}/transaction/`, transactionEndPoint)
+router.get(`/`, noop);
+router.get(`/list_transactions/`, listTransactionsEndPoint)
+router.get(`/transaction/`, transactionEndPoint)
 
 
 module.exports = router;
