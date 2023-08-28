@@ -2,6 +2,7 @@
 
 const Koa = require('koa');
 const body = require('koa-bodyparser');
+const cors = require('@koa/cors');
 
 const router = require('./router');
 const app = new Koa();
@@ -13,6 +14,7 @@ app.use(body());
 
 app.context.cache = {};
 
+app.use(cors({ origin: '*' }));
 app.use(router.routes());
 app.use(router.allowedMethods());
 

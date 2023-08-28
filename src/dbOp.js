@@ -35,11 +35,12 @@ const listTransactions = async (params) => {
       sourceTime: "desc"
     }
   })
+  const totalTransactionCount = data.length
   data = data.slice(
     Math.min(data.length, perPage * pageNo),
     Math.min(data.length, perPage * (pageNo + 1))
   )
-  return data
+  return { "transactions": data, "total_transactions_count": totalTransactionCount }
 }
 
 const transaction = async (params) => {

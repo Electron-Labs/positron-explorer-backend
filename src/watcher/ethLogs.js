@@ -43,7 +43,7 @@ const saveToDB = async (dataArray) => {
       newRecords.push(data)
     }
     else {
-      // don't update if a complete record already exists
+      // if a complete record already exists: don't update db; else: update db
       if (!Object.values(record).includes(null)) return
 
       const nonce = data.nonce
@@ -140,18 +140,28 @@ const processEvent = async (event, action) => {
 const syncEthLogs = async (...ranges) => {
   const contract = new web3.eth.Contract(ABI, contractAddress)
   for (let i = 0; i < ranges.length; i++) {
-    const range = ranges[i]
-    console.log("scanning eth block:", range)
-    const lockedEvents = await contract.getPastEvents(LOCKED_EVENT_NAME, { fromBlock: range.fromBlock, toBlock: range.toBlock })
-    const unlockedEvents = await contract.getPastEvents(UNLOCKED_EVENT_NAME, { fromBlock: range.fromBlock, toBlock: range.toBlock })
+    try {
+      const range = ranges[i]
+      console.log("scanning eth block:", range)
+      const lockedEvents = await contract.getPastEvents(LOCKED_EVENT_NAME, { fromBlock: range.fromBlock, toBlock: range.toBlock })
+      const unlockedEvents = await contract.getPastEvents(UNLOCKED_EVENT_NAME, { fromBlock: range.fromBlock, toBlock: range.toBlock })
 
-    let extractDataPromises = []
-    lockedEvents.map((event) => extractDataPromises.push(retry(extractDataFromEvent, event, Action.Lock)))
-    unlockedEvents.map((event) => extractDataPromises.push(retry(extractDataFromEvent, event, Action.Unlock)))
+      let extractDataPromises = []
+      lockedEvents.map((event) => extractDataPromises.push(retry(extractDataFromEvent, event, Action.Lock)))
+      unlockedEvents.map((event) => extractDataPromises.push(retry(extractDataFromEvent, event, Action.Unlock)))
 
-    const dataArray = await Promise.all(extractDataPromises)
+      const dataArray = await Promise.all(extractDataPromises)
 
-    await saveToDB(dataArray)
+      await saveToDB(dataArray)
+      if (Math.floor(i / 80) == 0) await sleep(1000)
+    } catch (err) {
+      // TODO: added new
+      console.log("Error scanning eth block:", ranges[i])
+      console.log("Trying again in 60 seconds...")
+      await sleep(1000 * 60)
+      i -= 1
+      continue
+    }
   }
 }
 

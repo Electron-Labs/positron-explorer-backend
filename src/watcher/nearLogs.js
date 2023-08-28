@@ -244,6 +244,8 @@ const syncNear = async (...ranges) => {
     for (let i = 0; i < ranges.length; i++) {
       const range = ranges[i]
       await retry(getNearLogs, nearConnection, nearArchival, range.fromBlock, range.toBlock)
+      // TODO: fine?
+      if (Math.floor(i / 80) == 0) await sleep(1000)
     }
   } catch (err) {
     logger.warn(`> Error in syncNear: ${err}`)
