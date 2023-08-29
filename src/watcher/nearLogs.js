@@ -1,6 +1,7 @@
 const nearAPI = require('near-api-js');
-const { TOKEN_ADDRESS, sleep, getEmptyData, retry, getPrisma, getLogger } = require("./utils/utils")
-const { CONTRACT_ID, EVENT_JSON_KEY, currentCredentialsPath, createNearConnection } = require("./utils/nearUtils")
+const { sleep, getEmptyData, retry, getPrisma, getLogger } = require("./utils/utils")
+const { CONTRACT_ID, SOURCE_TOKEN_ID, EVENT_JSON_KEY, currentCredentialsPath, createNearConnection } = require("./utils/nearUtils")
+const { TOKEN_ADDRESS } = require("./utils/ethUtils")
 const { Action, Status } = require('@prisma/client')
 
 const args = require('yargs').argv;
@@ -156,6 +157,7 @@ const extractDataFromEvent = (eventJson, txHash, timestamp, signerId) => {
     data.nonce = eventJson.nonce
     data.receiverAddress = eventJson.recipient.address
     data.destinationTx = txHash
+    data.tokenAddressSource = TOKEN_ADDRESS[network]
     data.destinationAmount = eventJson.amount
     data.destinationTime = datetime
     data.action = Action.Lock
@@ -164,7 +166,9 @@ const extractDataFromEvent = (eventJson, txHash, timestamp, signerId) => {
     data.receiverAddress = `0x${eventJson.recipient.address}`
     data.senderAddress = signerId
     data.sourceTx = txHash
-    data.tokenAddressSource = `0x${eventJson.token.address}`
+    data.tokenAddressSource = SOURCE_TOKEN_ID[network]
+    data.tokenAddressDestination = TOKEN_ADDRESS[network]
+    // data.tokenAddressSource = `0x${eventJson.token.address}`
     data.tokenAddressDestination = TOKEN_ADDRESS[data.tokenAddressSource]
     data.sourceAmount = eventJson.amount
     data.sourceTime = datetime

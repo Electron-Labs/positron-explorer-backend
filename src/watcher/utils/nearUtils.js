@@ -7,7 +7,23 @@ const CONTRACT_ID = {
   "testnet": "zkbridge.admin_electronlabs.testnet",
   "mainnet": "token_receiver.zkrouter.near"
 }
+
+const SOURCE_TOKEN_ID = {
+  "testnet": "electron-zkusdc.admin_electronlabs.testnet",
+  "mainnet": "zk-usdc.zkrouter.near"
+}
+
+const getDestinationTokenId = (native, network) => {
+  if (!native) {
+    if (network == "testnet") return "electron-zkusdc.admin_electronlabs.testnet"
+    else if (network == "mainnet") return "zk-usdc.zkrouter.near"
+  }
+  if (network == "testnet") return "electron-rusdc.admin_electronlabs.testnet"
+  else if (network == "mainnet") return "a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48.factory.bridge.near"
+}
+
 const CONTRACT_INIT_BLOCK_HEIGHT = 125211125
+
 const EVENT_JSON_KEY = "EVENT_JSON";
 
 const RPC = {
@@ -33,4 +49,4 @@ async function createNearConnection(network, credentialsPath, isArchival) {
   return near_connection;
 }
 
-module.exports = { CONTRACT_ID, CONTRACT_INIT_BLOCK_HEIGHT, EVENT_JSON_KEY, currentCredentialsPath, createNearConnection, RPC }
+module.exports = { CONTRACT_ID, SOURCE_TOKEN_ID, getDestinationTokenId, CONTRACT_INIT_BLOCK_HEIGHT, EVENT_JSON_KEY, currentCredentialsPath, createNearConnection, RPC }

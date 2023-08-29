@@ -1,7 +1,7 @@
 const Web3 = require('web3');
 const { Action, Status } = require('@prisma/client')
 const ReconnectingWebSocket = require('reconnecting-websocket');
-const { TOKEN_ADDRESS, sleep, getEmptyData, getPrisma, getLogger, retry } = require("./utils/utils")
+const { sleep, getEmptyData, getPrisma, getLogger, retry } = require("./utils/utils")
 const {
   EVENT_SIGNATURE,
   LOCKED_EVENT,
@@ -9,10 +9,12 @@ const {
   LOCKED_EVENT_NAME,
   UNLOCKED_EVENT_NAME,
   CONTRACT_ADDRESS,
+  TOKEN_ADDRESS,
   ABI,
   eth_subscribe,
   RPC
 } = require("./utils/ethUtils")
+const { SOURCE_TOKEN_ID, getDestinationTokenId } = require("./utils/nearUtils")
 const WebSocket = require('ws');
 
 const args = require('yargs').argv;
@@ -62,7 +64,6 @@ const saveToDB = async (dataArray) => {
       })
       console.log("eth updated")
 
-      // TODO: check and commit properly
       delete updated.status
       if (!Object.values(updated).includes(null)) {
         await prisma.eth_near.update({
@@ -116,8 +117,8 @@ const extractDataFromEvent = async (event, action) => {
     data.sourceTx = txHash
     data.receiverAddress = decodedLog.accountId
     data.sourceAmount = decodedLog.amount
-    data.tokenAddressSource = decodedLog.token
-    data.tokenAddressDestination = TOKEN_ADDRESS[data.tokenAddressSource]
+    data.tokenAddressSource = TOKEN_ADDRESS[network]
+    data.tokenAddressDestination = getDestinationTokenId(decodedLog.native, network)
     data.sourceTime = datetime
   }
   else {
@@ -125,6 +126,8 @@ const extractDataFromEvent = async (event, action) => {
     data.receiverAddress = decodedLog.recipient
     data.destinationTx = txHash
     data.destinationAmount = decodedLog.amount
+    data.tokenAddressSource = SOURCE_TOKEN_ID[network]
+    data.tokenAddressDestination = TOKEN_ADDRESS[network]
     data.destinationTime = datetime
   }
 

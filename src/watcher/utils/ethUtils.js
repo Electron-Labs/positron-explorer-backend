@@ -6,6 +6,11 @@ const CONTRACT_ADDRESS = {
   "mainnet": "0x36E3d7a3Fa4D8B87151A864F2e2C47429541e170"
 }
 
+const TOKEN_ADDRESS = {
+  "testnet": "0xc5bbac81754d2ccfdde030f6aea05d881752f2f8",
+  "mainnet": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+}
+
 const RPC = {
   "testnet": {
     "http": process.env.ETH_RPC_ENDPOINT_HTTP_TESTNET,
@@ -167,6 +172,7 @@ module.exports = {
   LOCKED_EVENT_NAME,
   UNLOCKED_EVENT_NAME,
   CONTRACT_ADDRESS,
+  TOKEN_ADDRESS,
   CONTRACT_INIT_BLOCK_NUMBER,
   ABI,
   eth_subscribe,
