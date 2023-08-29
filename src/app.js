@@ -19,9 +19,11 @@ app.use(router.routes());
 app.use(router.allowedMethods());
 
 let port
-if (network == "testnet") port = 5001;
-else if (network == "mainnet") port = 5002;
-else throw new Error('Bad `network` argument!');
+if (!args.development) {
+  if (network == "testnet") port = 5001;
+  else if (network == "mainnet") port = 5002;
+  else throw new Error('Bad `network` argument!');
+} else port = 5000;
 
 app.listen(port);
 console.log(`> ${network} watcher running! (:${port})`);

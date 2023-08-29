@@ -4,8 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "node src/app.js",
-    "startDev": "nodemon src/app.js",
+    "startTestnet": "node src/app.js --network testnet",
+    "startMainnet": "node src/app.js --network mainnet",
+    "startDev": "nodemon src/app.js --network testnet --development",
     "test": "echo \"Error: no test specified\" && exit 1",
     "showAll": "node src/dbOp.js --showAll",
     "deleteAll": "node src/dbOp.js --delete",

@@ -20,8 +20,10 @@ const watch = async () => {
     nearSyncRanges = [...nearSyncRanges, ...getRangesFromNumbers(...syncConfig[network]["near"]["numbers"])]
     nearSyncRanges = [...nearSyncRanges, ...syncConfig[network]["near"]["ranges"]]
 
-    await syncEth(...ethSyncRanges)
-    await syncNear(...nearSyncRanges)
+    if (args.sync) {
+      await syncEth(...ethSyncRanges)
+      await syncNear(...nearSyncRanges)
+    }
 
     await watchEth()
     await watchNear()

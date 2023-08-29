@@ -6,6 +6,11 @@ BigInt.prototype.toJSON = function () { return this.toString() }
 
 const sleep = (duration) => new Promise((resolve, reject) => setTimeout(resolve, duration));
 
+const TOKEN_ADDRESS = {
+    "0xc5bbAC81754d2CCfDdE030f6aEA05d881752f2f8": "electron-zkusdc.admin_electronlabs.testnet",
+    "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48": "zk-usdc.zkrouter.near"
+}
+
 const getEmptyData = () => {
     return {
         nonce: undefined,
@@ -18,6 +23,7 @@ const getEmptyData = () => {
         sourceAmount: undefined,
         destinationAmount: undefined,
         action: undefined,
+        tokenAddressSource: undefined,
         tokenAddressSource: undefined,
         status: undefined
     }
@@ -75,4 +81,4 @@ const getLogger = (network) => {
     return logger
 }
 
-module.exports = { sleep, getEmptyData, retry, getPrisma, getRangesFromNumbers, getLogger }
+module.exports = { TOKEN_ADDRESS, sleep, getEmptyData, retry, getPrisma, getRangesFromNumbers, getLogger }

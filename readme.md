@@ -7,8 +7,13 @@
 - All numbers must be integers, not strings
 
 ### run
-- npm start -- --network mainnet
-- npm start -- --network testnet
+#### without sync
+- npm startTestnet
+- npm startMainnet
+#### with sync
+- npm startTestnet -- --sync
+- npm startMainnet -- --sync
+
 
 ### db
 - npm run showAll -- --network mainnet

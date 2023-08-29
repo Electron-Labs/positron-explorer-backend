@@ -33,6 +33,7 @@ model eth_near {
   destinationAmount       BigInt?
   action                  Action
   tokenAddressSource      String?   @db.VarChar(66)
+  tokenAddressDestination String?   @db.VarChar(66)
   status                  Status
 
   @@unique([nonce, action])

@@ -1,5 +1,5 @@
 const nearAPI = require('near-api-js');
-const { sleep, getEmptyData, retry, getPrisma, getLogger } = require("./utils/utils")
+const { TOKEN_ADDRESS, sleep, getEmptyData, retry, getPrisma, getLogger } = require("./utils/utils")
 const { CONTRACT_ID, EVENT_JSON_KEY, currentCredentialsPath, createNearConnection } = require("./utils/nearUtils")
 const { Action, Status } = require('@prisma/client')
 
@@ -165,6 +165,7 @@ const extractDataFromEvent = (eventJson, txHash, timestamp, signerId) => {
     data.senderAddress = signerId
     data.sourceTx = txHash
     data.tokenAddressSource = `0x${eventJson.token.address}`
+    data.tokenAddressDestination = TOKEN_ADDRESS[data.tokenAddressSource]
     data.sourceAmount = eventJson.amount
     data.sourceTime = datetime
     data.action = Action.Unlock
@@ -274,7 +275,7 @@ const watchNear = async () => {
 
   const latestBlockHeight = await retry(getLatestBlockHeight, nearConnection)
 
-  console.log("watching near logs...")
+  console.log("watching near...")
   await watchNearLogs(nearConnection, nearArchival, latestBlockHeight, latestBlockHeight)
 }
 

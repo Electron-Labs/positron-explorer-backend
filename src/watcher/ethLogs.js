@@ -1,7 +1,7 @@
 const Web3 = require('web3');
-const { sleep, getEmptyData, getPrisma, getLogger, retry } = require("./utils/utils")
 const { Action, Status } = require('@prisma/client')
 const ReconnectingWebSocket = require('reconnecting-websocket');
+const { TOKEN_ADDRESS, sleep, getEmptyData, getPrisma, getLogger, retry } = require("./utils/utils")
 const {
   EVENT_SIGNATURE,
   LOCKED_EVENT,
@@ -117,6 +117,7 @@ const extractDataFromEvent = async (event, action) => {
     data.receiverAddress = decodedLog.accountId
     data.sourceAmount = decodedLog.amount
     data.tokenAddressSource = decodedLog.token
+    data.tokenAddressDestination = TOKEN_ADDRESS[data.tokenAddressSource]
     data.sourceTime = datetime
   }
   else {
