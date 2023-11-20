@@ -46,13 +46,12 @@ const saveToDB = async (dataArray) => {
     }
     else {
       // if a complete record already exists: don't update db; else: update db
-      if (!Object.values(record).includes(null)) return
+      if (!Object.values(record).includes(null)) continue
 
       const nonce = data.nonce
       const action = data.action
       delete data.nonce
       delete data.action
-
       const updated = await prisma.eth_near.update({
         where: {
           nonce_action: {
@@ -166,7 +165,6 @@ const syncEthLogs = async (...ranges) => {
       let extractDataPromises = []
       lockedEvents.map((event) => extractDataPromises.push(retry(extractDataFromEvent, event, Action.Lock)))
       unlockedEvents.map((event) => extractDataPromises.push(retry(extractDataFromEvent, event, Action.Unlock)))
-
       const dataArray = await Promise.all(extractDataPromises)
 
       await saveToDB(dataArray)
